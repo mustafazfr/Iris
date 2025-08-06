@@ -25,18 +25,17 @@ class SalonDetailScreen extends StatefulWidget {
 class _SalonDetailScreenState extends State<SalonDetailScreen> {
   int _selectedGalleryIndex = 1;
 
-// YUKARIDAKİ SATIRI BU ŞEKİLDE DEĞİŞTİRİN
-  final List<String> _galleryImages = []; // Listeyi bu şekilde boşaltın
+  final List<String> _galleryImages = [];
 
-  final List<Map<String, String>> _personnel = List.generate(5, (i) {
+  final List<Map<String, String>> _personnel = List.generate(10, (i) { // Örnek olması için sayıyı 10'a çıkardım
     return {
-      'name': 'Jhon Doe',
+      'name': 'Jhon Doe ${i+1}',
       'role': 'Saç Stilisti',
       'avatarUrl': 'https://via.placeholder.com/100'
     };
   });
 
-  final List<String> _categories = ['Cilt Bakım', 'Nail Art', 'Saç Kesim', 'Saç Bakım'];
+  final List<String> _allPossibleCategories = ['Cilt Bakım', 'Nail Art', 'Saç Kesim', 'Saç Bakım'];
   String _selectedCategory = 'Cilt Bakım';
 
   // --- SEPET YÖNETİMİ ---
@@ -87,12 +86,91 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       }
     }).toList();
   }
-  Widget _buildTab(String text) {
-    return Container(
-      // HER BİR SEKMENİN SABİT GENİŞLİĞİ BURADAN AYARLANIR
-      width: 110,
-      alignment: Alignment.center,
-      child: Text(text),
+
+  List<String> _getAvailableCategories(List<ServiceModel> allServices) {
+    final Map<String, bool Function(String)> categoryChecks = {
+      'Cilt Bakım': (name) => name.contains('cilt') || name.contains('bakım') || name.contains('kolajen') || name.contains('oksijen'),
+      'Nail Art': (name) => name.contains('nail') || name.contains('tırnak'),
+      'Saç Kesim': (name) => name.contains('saç') && name.contains('kesim'),
+      'Saç Bakım': (name) => name.contains('saç') && name.contains('bakım'),
+    };
+
+    final availableCategories = <String>[];
+    categoryChecks.forEach((categoryName, checkFunction) {
+      if (allServices.any((service) => checkFunction(service.serviceName.toLowerCase()))) {
+        availableCategories.add(categoryName);
+      }
+    });
+    return availableCategories;
+  }
+
+  int _getTabIndex(String tabText) {
+    switch (tabText) {
+      case 'Hakkımızda':
+        return 0;
+      case 'Galeri':
+        return 1;
+      case 'Personeller':
+        return 2;
+      case 'Yorumlar':
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
+  Widget _buildNewTab(String text) {
+    return Builder(
+      builder: (context) {
+        final tabController = DefaultTabController.of(context);
+        if (tabController == null) return Tab(text: text);
+
+        return ListenableBuilder(
+          listenable: tabController.animation!,
+          builder: (context, child) {
+            final currentIndex = tabController.index;
+            final isSelected = currentIndex == _getTabIndex(text);
+
+            return Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF5A67D8) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.grey.shade400,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildWorkingHoursRow(String day, String hours) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          day,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+        ),
+        Text(
+          hours,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
@@ -125,7 +203,20 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             );
           }
           final salon = salonVM.salon!;
+          final availableCategories = _getAvailableCategories(salon.services);
+
+          if (availableCategories.isNotEmpty && !availableCategories.contains(_selectedCategory)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  _selectedCategory = availableCategories.first;
+                });
+              }
+            });
+          }
+
           final filteredServices = _filterByCategory(salon.services);
+
           return Scaffold(
             extendBodyBehindAppBar: true,
             appBar: _buildAppBar(context),
@@ -152,58 +243,42 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                       const SizedBox(height: 10),
                       _buildCalendar(context, salonVM),
                       const SizedBox(height: 20),
-                      _buildServicesListSection(salon, salonVM, filteredServices),
+                      _buildServicesListSection(salon, salonVM, filteredServices, availableCategories),
                       const SizedBox(height: 20),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: DefaultTabController(
-                          length: 4,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(4),
-                                  color: Colors.white,
-                                ),
-                                child: TabBar(
-                                  // YENİ EKLENEN ÖZELLİK: Bar'ın kendi iç kenar boşluğunu ayarlar.
-                                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
-
-                                  isScrollable: true,
-                                  indicator: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(4),
-                                    color: AppColors.primaryColor,
-                                  ),
-                                  labelColor: Colors.white,
-                                  unselectedLabelColor:
-                                  AppColors.textColorDark.withOpacity(0.5),
-                                  labelStyle: const TextStyle(
-                                      fontWeight: FontWeight.w600),
-                                  tabs: [
-                                    _buildTab('Hakkımızda'),
-                                    _buildTab('Galeri'),
-                                    _buildTab('Personeller'),
-                                    _buildTab('Yorumlar'),
-                                  ],
-                                ),
+                      DefaultTabController(
+                        length: 4,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: TabBar(
+                                isScrollable: true,
+                                labelPadding: EdgeInsets.zero,
+                                indicatorColor: Colors.transparent,
+                                padding: EdgeInsets.zero,
+                                tabs: [
+                                  _buildNewTab('Hakkımızda'),
+                                  _buildNewTab('Galeri'),
+                                  _buildNewTab('Personeller'),
+                                  _buildNewTab('Yorumlar'),
+                                ],
                               ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                height: 380,
-                                child: TabBarView(
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  children: [
-                                    _aboutSection(salon),
-                                    _gallerySection(),
-                                    _personnelSection(),
-                                    _commentsTabSection(commentsVM),
-                                  ],
-                                ),
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              height: 450,
+                              child: TabBarView(
+                                physics: const NeverScrollableScrollPhysics(),
+                                children: [
+                                  _aboutSection(salon),
+                                  _gallerySection(),
+                                  _personnelSection(),
+                                  _commentsTabSection(commentsVM),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 160),
@@ -399,47 +474,63 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       ],
     );
   }
+
   Widget _aboutSection(SaloonModel salon) {
     return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'İris Güzellik Salonunda kendinizi özel hissetmeniz için uzman ellerde kişiye özel bakım sunuyoruz. Doğal güzelliğinizi ön plana çıkaran, güvenli ve modern hizmetlerle yanınızdayız.',
-            style: AppFonts.bodySmall(color: AppColors.textColorLight),
+            'İris Güzellik Salonu\'nda kendinizi özel hissetmeniz için uzman ellerde kişiye özel bakım sunuyoruz. Doğal güzelliğinizi ön plana çıkaran, güvenli ve modern hizmetlerle yanınızdayız.',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 15,
+              height: 1.6,
+            ),
           ),
-          const SizedBox(height: 12),
-          Text('Çalışma Saatleri', style: AppFonts.poppinsBold(fontSize: 16)),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Text('Hafta içi: 09:00 - 21:00',
-                    style: AppFonts.bodySmall(color: AppColors.textColorDark)),
-              ),
-              Expanded(
-                child: Text('Hafta sonu: 09:00 - 22:00',
-                    style: AppFonts.bodySmall(color: AppColors.textColorDark)),
-              ),
-            ],
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 24),
+
+          const Text(
+            'Çalışma Saatleri',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
           ),
-          const SizedBox(height: 12),
-          Text('Salon Adresi', style: AppFonts.poppinsBold(fontSize: 16)),
-          const SizedBox(height: 6),
+          const SizedBox(height: 16),
+          _buildWorkingHoursRow('Haftaiçi', '09:00 - 21:00'),
+          const SizedBox(height: 8),
+          _buildWorkingHoursRow('Haftasonu', '09:00 - 22:00'),
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 24),
+          const Text(
+            'Salon Adresi',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.location_on_outlined,
-                  size: 14, color: AppColors.textColorDark),
-              const SizedBox(width: 6),
+              const Icon(Icons.location_on_outlined, size: 20, color: Colors.grey),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'İris Güzellik Salonu, Atatürk Cad. No:45 Kat:2, Nişantaşı, Şişli, İstanbul 34365',
-                  style: AppFonts.bodySmall(color: AppColors.textColorDark),
+                  salon.saloonAddress ?? 'Adres bilgisi girilmemiş.',
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 15, height: 1.6),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Container(
             height: 140,
             decoration: BoxDecoration(
@@ -504,127 +595,175 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     );
   }
 
+  // DEĞİŞİKLİK: Personel bölümü ListView'dan GridView'a çevrildi.
   Widget _personnelSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        height: 120,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: _personnel.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 16),
-          itemBuilder: (context, i) {
-            final p = _personnel[i];
-            return Column(
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundImage: NetworkImage(p['avatarUrl'] ?? ''),
-                  backgroundColor: Colors.grey.shade200,
-                ),
-                const SizedBox(height: 6),
-                Text(p['name'] ?? '', style: AppFonts.poppinsBold(fontSize: 14)),
-                Text(p['role'] ?? '', style: AppFonts.bodySmall(color: Colors.grey)),
-              ],
-            );
-          },
-        ),
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,        // Her satırda 3 personel
+        crossAxisSpacing: 16,     // Yatay boşluk
+        mainAxisSpacing: 16,      // Dikey boşluk
+        childAspectRatio: 0.8,    // Genişlik/Yükseklik oranı
       ),
+      itemCount: _personnel.length,
+      itemBuilder: (context, i) {
+        final p = _personnel[i];
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 35,
+              backgroundImage: NetworkImage(p['avatarUrl'] ?? ''),
+              backgroundColor: Colors.grey.shade200,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              p['name'] ?? '',
+              style: AppFonts.poppinsBold(fontSize: 14),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              p['role'] ?? '',
+              style: AppFonts.bodySmall(color: Colors.grey),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _commentsTabSection(CommentsViewModel vm) {
-    final TextEditingController _commentController = TextEditingController();
-    return Column(
-      children: [
-        // Yorum listesi
-        Expanded(
-          child: vm.isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : vm.error != null
-              ? Center(child: Text(vm.error!))
-              : ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: vm.comments.length,
-            separatorBuilder: (_, __) => const Divider(),
-            itemBuilder: (context, i) => _buildCommentListItem(vm.comments[i]),
+    final TextEditingController commentController = TextEditingController();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        children: [
+          Expanded(
+            child: vm.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : vm.error != null
+                ? Center(child: Text(vm.error!))
+                : vm.comments.isEmpty
+                ? const Center(child: Text("Henüz yorum yapılmamış."))
+                : ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: vm.comments.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (context, i) => _buildCommentListItem(vm.comments[i]),
+            ),
           ),
-        ),
-
-        // Yeni yorum girişi
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _commentController,
-                  maxLines: null,
-                  decoration: InputDecoration(
-                    hintText: 'Yorumunuzu yazın...',
-                    contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: commentController,
+                    maxLines: null,
+                    decoration: InputDecoration(
+                      hintText: 'Yorumunuzu yazın...',
+                      contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () {
-                  final text = _commentController.text.trim();
-                  if (text.isEmpty) return;
-                  // ViewModel üzerinden postComment çağrısı yapılıyor
-                  // DÜZELTME: Hatalı parametreler temizlendi ve salonId eklendi.
-                  // DOĞRU KULLANIM
-                  vm.postComment(text: text, userId: '', salonId: widget.salonId, rating: 5, userName: '').then((_) {
-                    _commentController.clear();
-                  });
-                },
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    final text = commentController.text.trim();
+                    if (text.isEmpty) return;
+                    vm.postComment(text: text, userId: '', salonId: widget.salonId, rating: 5, userName: '').then((_) {
+                      commentController.clear();
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: const Icon(Icons.send),
                 ),
-                child: const Icon(Icons.send),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+
   Widget _buildServicesListSection(SaloonModel salon, SalonDetailViewModel vm,
-      List<ServiceModel> filteredServices) {
+      List<ServiceModel> filteredServices, List<String> availableCategories) {
+    if (availableCategories.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 48),
+        child: Center(
+          child: Text(
+            'Bu salonda henüz hizmet bulunmuyor.',
+            style: AppFonts.bodyMedium(color: AppColors.textColorLight),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
-        _buildCategoryTabs(),
+        _buildCategoryTabs(availableCategories),
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(_selectedCategory,
-              style: AppFonts.poppinsBold(fontSize: 26)),
+          child: Text(
+            _selectedCategory,
+            style: AppFonts.poppinsBold(fontSize: 26),
+          ),
         ),
         const SizedBox(height: 8),
         if (filteredServices.isEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Bu kategoride servis bulunamadı.',
-                style: AppFonts.bodySmall(color: AppColors.textColorDark)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: Center(
+              child: Text(
+                'Bu kategoride servis bulunamadı.',
+                style: AppFonts.bodyMedium(color: AppColors.textColorLight),
+              ),
+            ),
           )
         else
-          ...filteredServices.map((s) => _buildServiceListItem(s)).toList(),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            itemCount: filteredServices.length,
+            itemBuilder: (context, index) {
+              final service = filteredServices[index];
+              return _buildServiceListItem(service);
+            },
+            separatorBuilder: (context, index) {
+              return const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16);
+            },
+          ),
         const SizedBox(height: 12),
       ],
     );
   }
 
-  Widget _buildCategoryTabs() {
+  Widget _buildCategoryTabs(List<String> categories) {
+    if (categories.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: SizedBox(
@@ -632,10 +771,10 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
-          itemCount: _categories.length,
+          itemCount: categories.length,
           separatorBuilder: (_, __) => const SizedBox(width: 8),
           itemBuilder: (context, idx) {
-            final cat = _categories[idx];
+            final cat = categories[idx];
             final bool isSelected = _selectedCategory == cat;
             return GestureDetector(
               onTap: () {
@@ -782,36 +921,24 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       ),
     );
   }
+
   Widget _buildServiceListItem(ServiceModel service) {
     final bool isAdded = _cart.containsKey(service);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            spreadRadius: 1,
-            blurRadius: 8,
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.0),
             child: Image.network(
-              // DİNAMİK GÖRSEL: Kendi modelindeki görsel URL'ini kullan
-              service.imageUrl ?? 'https://via.placeholder.com/100',
-              width: 60,
-              height: 60,
+              service.imageUrl ?? 'https://via.placeholder.com/90',
+              width: 90,
+              height: 90,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.image_not_supported, size: 60),
+              const Icon(Icons.image_not_supported, size: 90, color: Colors.grey),
             ),
           ),
           const SizedBox(width: 16),
@@ -821,25 +948,27 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               children: [
                 Text(
                   service.serviceName,
-                  style: AppFonts.poppinsBold(fontSize: 18),
+                  style: AppFonts.poppinsBold(fontSize: 16),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
-                  '\$${service.basePrice}',
-                  style: AppFonts.bodyMedium(
-                      color: AppColors.textColorDark.withOpacity(0.7)),
+                  '\$${service.basePrice.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textColorDark,
+                  ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     const Icon(Icons.schedule, size: 16, color: Colors.grey),
                     const SizedBox(width: 4),
                     Text(
                       '${service.estimatedTime.inMinutes} Dak',
-                      style:
-                      AppFonts.bodySmall(color: AppColors.textColorLight),
+                      style: AppFonts.bodySmall(color: AppColors.textColorLight),
                     ),
                   ],
                 ),
@@ -847,51 +976,57 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          isAdded
-              ? ElevatedButton(
-            onPressed: () => _removeService(service),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          SizedBox(
+            height: 90,
+            child: Align(
+              alignment: Alignment.center,
+              child: isAdded
+                  ? ElevatedButton(
+                onPressed: () => _removeService(service),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Çıkart', style: AppFonts.bodySmall(color: Colors.white)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.remove, size: 16, color: Colors.white),
+                  ],
+                ),
+              )
+                  : OutlinedButton(
+                onPressed: () => _addService(service),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryColor,
+                  side: const BorderSide(color: AppColors.primaryColor, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Ekle', style: AppFonts.bodySmall(color: AppColors.primaryColor)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.add, size: 16, color: AppColors.primaryColor),
+                  ],
+                ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Çıkart', style: AppFonts.bodySmall(color: Colors.white)),
-                const SizedBox(width: 4),
-                const Icon(Icons.remove, size: 16, color: Colors.white),
-              ],
-            ),
-          )
-              : ElevatedButton(
-            onPressed: () => _addService(service),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              side: BorderSide(color: AppColors.primaryColor, width: 1.5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Ekle', style: AppFonts.bodySmall(color: AppColors.primaryColor)),
-                const SizedBox(width: 4),
-                const Icon(Icons.add, size: 16, color: AppColors.primaryColor),
-              ],
             ),
           ),
         ],
       ),
     );
   }
+
   Widget _buildHeader(BuildContext context, SaloonModel salon) {
     return Container(
       height: 300,
@@ -1064,7 +1199,6 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter modalSetState) {
-            // Geçici tarih & saat değerleri
             DateTime pickedDate = viewModel.selectedDate ?? DateTime.now();
             TimeOfDay pickedTime = viewModel.selectedTimeSlot != null
                 ? TimeOfDay(
@@ -1073,20 +1207,19 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             )
                 : const TimeOfDay(hour: 9, minute: 0);
 
-            // Alt toplam ve kupon indirimi
             double subtotal = _cart.isEmpty
                 ? 0.0
                 : _cart.keys.map((e) => e.basePrice).reduce((a, b) => a + b);
             double totalAmount = subtotal - _couponDiscount;
 
-            // Hizmet çıkarma helper
             void removeServiceFromPopup(ServiceModel s) {
-              _removeService(s);
-              modalSetState(() {});
+              setState(() {});
+              modalSetState(() {
+                _removeService(s);
+              });
             }
 
-            // Tarih picker
-            Future<void> _selectDate() async {
+            Future<void> selectDate() async {
               final DateTime? date = await showDatePicker(
                 context: context,
                 initialDate: pickedDate,
@@ -1099,8 +1232,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               }
             }
 
-            // Saat picker
-            Future<void> _selectTime() async {
+            Future<void> selectTime() async {
               final TimeOfDay? t = await showTimePicker(
                 context: context,
                 initialTime: pickedTime,
@@ -1128,10 +1260,8 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   const SizedBox(height: 16),
                   _buildConfirmationSalonInfoCard(viewModel.salon!, primaryColor),
                   const SizedBox(height: 24),
-
-                  // Tarih seçimi
                   InkWell(
-                    onTap: _selectDate,
+                    onTap: selectDate,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1150,10 +1280,8 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Saat seçimi
                   InkWell(
-                    onTap: _selectTime,
+                    onTap: selectTime,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1172,8 +1300,6 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                     ),
                   ),
                   const Divider(height: 32),
-
-                  // Seçilen hizmetler
                   if (_cart.isNotEmpty)
                     ..._cart.keys.map((service) =>
                         _buildConfirmationServiceTile(service, primaryColor, removeServiceFromPopup)
@@ -1185,15 +1311,11 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                         child: Text("Sepetinizde hizmet bulunmuyor."),
                       ),
                     ),
-
                   const SizedBox(height: 24),
-
-                  // Fiyat detayları
                   _buildConfirmationPriceDetails(subtotal, totalAmount),
                   const SizedBox(height: 24),
-
-                  // Onay butonu
                   _buildConfirmationFinalButton(primaryColor),
+                  const SizedBox(height: 16),
                 ],
               ),
             );
@@ -1252,8 +1374,6 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(8.0),
             child: Image.network(
-              // DİKKAT: 'service.imageUrl' kısmını kendi modelindeki görsel alanının adıyla değiştir.
-              // Eğer görsel URL'si yoksa, varsayılan bir görsel gösterir.
               service.imageUrl ?? 'https://via.placeholder.com/80x80?text=Hizmet',
               width: 80,
               height: 80,
