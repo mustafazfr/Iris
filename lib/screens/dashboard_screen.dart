@@ -36,14 +36,6 @@ class UpcomingAppointmentsCard extends StatelessWidget {
           const SizedBox(height: 10),
           InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AppointmentsScreen(),
-                ),
-              );
-            },
             child: Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF5B81F6),
@@ -54,7 +46,7 @@ class UpcomingAppointmentsCard extends StatelessWidget {
                 children: [
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: const EdgeInsets.all(10),
@@ -209,9 +201,9 @@ class _SalonCardState extends State<SalonCard>
           child: SizedBox(
             height: 120,
             width: double.infinity,
-            child: imagePath != null && imagePath!.isNotEmpty
+            child: imagePath != null && imagePath.isNotEmpty
                 ? CachedNetworkImage(
-              imageUrl: imagePath!,
+              imageUrl: imagePath,
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(
                 color: Colors.grey.shade200,
@@ -272,7 +264,7 @@ class _SalonCardState extends State<SalonCard>
       margin: EdgeInsets.only(right: isLast ? 0 : 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-          color: AppColors.primaryColor.withOpacity(0.1),
+          color: AppColors.primaryColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8)),
       child: Center(
           child: Text(service, style: AppFonts.bodySmall(color: AppColors.primaryColor))),
@@ -332,6 +324,7 @@ class _DashboardContentState extends State<_DashboardContent> {
     _campaignSaloonsFuture = vm.getCampaignSaloons();
   }
 
+  @override
   Widget build(BuildContext context) {
     final vm = Provider.of<DashboardViewModel>(context);
     return RefreshIndicator(
@@ -395,7 +388,7 @@ class _DashboardContentState extends State<_DashboardContent> {
                           right: 8,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               shape: BoxShape.circle,
                             ),
                             child: IconButton(
@@ -578,7 +571,7 @@ class SaloonList extends StatelessWidget {
               borderRadius: BorderRadius.circular(15.0),
               child: SalonCard(
                 name: salon.saloonName,
-                rating: salon.avgRating?.toStringAsFixed(1) ?? 'N/A',
+                rating: salon.avgRating.toStringAsFixed(1),
                 description: salon.saloonAddress ?? 'Adres bilgisi yok',
                 services: serviceNames.isNotEmpty
                     ? serviceNames
@@ -617,7 +610,7 @@ class SectionDivider extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child:
-      Divider(color: AppColors.dividerColor.withOpacity(0.5), thickness: 1),
+      Divider(color: AppColors.dividerColor.withValues(alpha: 0.5), thickness: 1),
     );
   }
 }

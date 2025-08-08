@@ -14,37 +14,48 @@ import 'package:denemeye_devam/viewmodels/search_viewmodel.dart';
 
 // Bildirimler ekranı importu
 import 'notifications_screen.dart';
-
 import 'dashboard_screen.dart';
 
 // ---- CUSTOM BAŞLIK ----
 class BigScreenTitleBar extends StatelessWidget {
   final String title;
-  const BigScreenTitleBar({super.key, required this.title});
+  final VoidCallback onBack;
+
+  const BigScreenTitleBar({
+    Key? key,
+    required this.title,
+    required this.onBack,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 44, left: 20, right: 20, bottom: 20),
+      // bottom: 24 — Favoriler sayfasındaki boşlukla eşit
+      padding: const EdgeInsets.only(
+        top: 60,
+        left: 20,
+        right: 20,
+        bottom: 24,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           GestureDetector(
-            onTap: () {
-              // Ekran stack'ini temizleyip Dashboard'a at!
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            child: Icon(Icons.arrow_back, color: Color(0xFF211E3B), size: 36),
+            onTap: onBack,
+            child: const Icon(
+              Icons.arrow_back,
+              color: Color(0xFF211E3B),
+              size: 28,
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Text(
             title,
             style: const TextStyle(
               fontFamily: "Poppins",
-              fontWeight: FontWeight.w700,
-              fontSize: 34,
+              fontWeight: FontWeight.w600,
+              fontSize: 24,
               color: Colors.black,
-              letterSpacing: -1.5,
             ),
           ),
         ],
@@ -53,21 +64,22 @@ class BigScreenTitleBar extends StatelessWidget {
   }
 }
 
-
 // ---- ROOT YÖNLENDİRİCİ ----
 class RootScreen extends StatelessWidget {
-  const RootScreen({super.key});
+  const RootScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final authViewModel = context.watch<AuthViewModel>();
-    return authViewModel.user == null ? const HomePage() : const MainApp();
+    return authViewModel.user == null
+        ? const HomePage()
+        : const MainApp();
   }
 }
 
 // ---- MAIN APP ----
 class MainApp extends StatefulWidget {
-  const MainApp({super.key});
+  const MainApp({Key? key}) : super(key: key);
 
   @override
   State<MainApp> createState() => _MainAppState();
@@ -77,14 +89,6 @@ class _MainAppState extends State<MainApp> {
   int _selectedIndex = 0;
   late TextEditingController _searchController;
   late FocusNode _searchFocusNode;
-
-  static final List<Widget> _pages = <Widget>[
-    const DashboardScreen(),
-    const AppointmentsScreen(),
-    const SearchScreen(),
-    const FavoritesScreen(),
-    const ProfileScreen(),
-  ];
 
   @override
   void initState() {
@@ -118,15 +122,15 @@ class _MainAppState extends State<MainApp> {
       if (index != 2) {
         _searchController.clear();
         _searchFocusNode.unfocus();
-        Provider.of<SearchViewModel>(context, listen: false).toggleSearch(false);
+        Provider.of<SearchViewModel>(context, listen: false)
+            .toggleSearch(false);
       }
     });
   }
 
   PreferredSizeWidget? _getAppBar(BuildContext context) {
-    // Dashboard ve Search hariç tüm ekranlarda boş bırak, custom başlık eklenecek
     if (_selectedIndex == 0) return _dashboardAppBar(context);
-    if (_selectedIndex == 2) return _searchAppBar(context);
+    // Diğer sayfalarda AppBar yerine BigScreenTitleBar kullanılıyor
     return null;
   }
 
@@ -177,7 +181,7 @@ class _MainAppState extends State<MainApp> {
             child: GestureDetector(
               onTap: () => _onItemTapped(2),
               child: Container(
-                height: 48.0,
+                height: 8.0,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF3F4F6),
@@ -188,7 +192,8 @@ class _MainAppState extends State<MainApp> {
                     Expanded(
                       child: Text(
                         'Salon ara...',
-                        style: AppFonts.bodyMedium(color: AppColors.textColorLight),
+                        style:
+                        AppFonts.bodyMedium(color: AppColors.textColorLight),
                       ),
                     ),
                     Icon(Icons.tune, color: AppColors.textColorLight),
@@ -204,7 +209,11 @@ class _MainAppState extends State<MainApp> {
           icon: Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(Icons.notifications_none_outlined, color: AppColors.primaryColor, size: 30),
+              Icon(
+                Icons.notifications_none_outlined,
+                color: AppColors.primaryColor,
+                size: 30,
+              ),
               Positioned(
                 top: -2,
                 right: -2,
@@ -232,38 +241,6 @@ class _MainAppState extends State<MainApp> {
     );
   }
 
-  AppBar _searchAppBar(BuildContext context) {
-    return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0,
-      toolbarHeight: 80,
-      leading: IconButton(
-        icon: Icon(
-          Icons.arrow_back,
-          color: Color(0xFF211E3B),
-          size: 32,
-        ),
-        onPressed: () => _onItemTapped(0),
-      ),
-      centerTitle: false,
-      titleSpacing: 0,
-      title: Padding(
-        padding: const EdgeInsets.only(left: 0, top: 10),
-        child: Text(
-          "Ara",
-          style: TextStyle(
-            fontFamily: "Poppins",
-            fontWeight: FontWeight.w800,
-            fontSize: 34,
-            color: Colors.black,
-            letterSpacing: -1.5,
-          ),
-        ),
-      ),
-      actions: [const SizedBox(width: 32)],
-    );
-  }
-
   Widget _buildNavItem({required IconData icon, required int index}) {
     final isSelected = _selectedIndex == index;
     return Expanded(
@@ -279,8 +256,10 @@ class _MainAppState extends State<MainApp> {
                 duration: const Duration(milliseconds: 250),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                    color: isSelected ? Colors.white.withOpacity(0.25) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12)
+                  color: isSelected
+                      ? Colors.white.withOpacity(0.25)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: Colors.white, size: 28),
               ),
@@ -338,8 +317,7 @@ class _MainAppState extends State<MainApp> {
                     BoxShadow(
                         color: Colors.black26,
                         blurRadius: 8,
-                        offset: Offset(0, 4)
-                    ),
+                        offset: Offset(0, 4)),
                   ],
                 ),
                 child: Center(
@@ -358,44 +336,58 @@ class _MainAppState extends State<MainApp> {
     );
   }
 
-  // ---- ASIL BUILD ----
   @override
   Widget build(BuildContext context) {
-    // Her ekrana özel başlık ekleme
     List<Widget> bodyStack = [];
 
-    Widget bodyContent = IndexedStack(index: _selectedIndex, children: [
-      // Dashboard
-      _pages[0],
-      // Randevularım
-      Column(
-        children: [
-          const BigScreenTitleBar(title: 'Randevularım'),
-          Expanded(child: _pages[1]),
-        ],
-      ),
-      // Ara (Search)
-      _pages[2],
-      // Favorilerim
-      Column(
-        children: [
-          const BigScreenTitleBar(title: 'Favorilerim'),
-          Expanded(child: _pages[3]),
-        ],
-      ),
-      // Profilim
-      Column(
-        children: [
-          const BigScreenTitleBar(title: 'Profilim'),
-          Expanded(child: _pages[4]),
-        ],
-      ),
-    ]);
+    Widget bodyContent = IndexedStack(
+      index: _selectedIndex,
+      children: [
+        const DashboardScreen(),
+        Column(
+          children: [
+            BigScreenTitleBar(
+              title: 'Randevularım',
+              onBack: () => _onItemTapped(0),
+            ),
+            const Expanded(child: AppointmentsScreen()),
+          ],
+        ),
+        Column(
+          children: [
+            BigScreenTitleBar(
+              title: 'Salon Ara',
+              onBack: () => _onItemTapped(0),
+            ),
+            Expanded(child: SearchScreen()),
+          ],
+        ),
+        Column(
+          children: [
+            BigScreenTitleBar(
+              title: 'Favorilerim',
+              onBack: () => _onItemTapped(0),
+            ),
+            const Expanded(child: FavoritesScreen()),
+          ],
+        ),
+        Column(
+          children: [
+            BigScreenTitleBar(
+              title: 'Profilim',
+              onBack: () => _onItemTapped(0),
+            ),
+            const Expanded(child: ProfileScreen()),
+          ],
+        ),
+      ],
+    );
 
     bodyStack.add(bodyContent);
     bodyStack.add(_buildFloatingNavBar());
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: _getAppBar(context),
       body: Stack(children: bodyStack),
     );

@@ -34,7 +34,7 @@ class CustomTextField extends StatefulWidget {
 class _CustomTextFieldState extends State<CustomTextField> {
   @override
   Widget build(BuildContext context) {
-    final bool isPassword = widget.obscureText;
+    final bool _ = widget.obscureText;
 
     // Focus durumuna göre border ve shadow renklerini ayarla
     final Color borderColor = widget.isFocused ? AppColors.primaryColor : AppColors.borderColor;

@@ -1,233 +1,214 @@
-import 'package:denemeye_devam/models/reservation_model.dart';
-import 'package:denemeye_devam/viewmodels/appointments_viewmodel.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import 'package:denemeye_devam/core/app_colors.dart';
 import 'package:denemeye_devam/core/app_fonts.dart';
-import 'package:provider/provider.dart';
+import 'package:denemeye_devam/models/reservation_model.dart';
+import 'package:denemeye_devam/viewmodels/appointments_viewmodel.dart';
 import 'package:denemeye_devam/viewmodels/search_viewmodel.dart';
-import 'package:intl/intl.dart';
 
-// SEKME BAR
-class AppointmentTabBar extends StatelessWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onTabChanged;
-  const AppointmentTabBar({
-    super.key,
-    required this.selectedIndex,
-    required this.onTabChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tabs = [
-      "Onay Bekleyen\nRandevularım",
-      "Gelecek\nRandevularım",
-      "Geçmiş\nRandevularım",
-    ];
-    return Column(
-      children: [
-        SizedBox(
-          height: 52,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(tabs.length, (i) {
-              final isSelected = i == selectedIndex;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => onTabChanged(i),
-                  child: AnimatedContainer(
-                    duration: Duration(milliseconds: 180),
-                    margin: const EdgeInsets.symmetric(horizontal: 5),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Color(0xFF4E61FA) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        tabs[i],
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: isSelected ? Colors.white : Color(0xFFE4EAF6),
-                          height: 1.13,
-                          letterSpacing: 0.1,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: SizedBox(
-            height: 1,
-            child: LayoutBuilder(
-              builder: (context, constraints) => CustomPaint(
-                painter: _DottedLinePainter(),
-                size: Size(constraints.maxWidth, 1),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DottedLinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Color(0xFFDEE5F0)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    double dashWidth = 6, dashSpace = 5, startX = 0;
-    while (startX < size.width) {
-      canvas.drawLine(
-        Offset(startX, 0),
-        Offset(startX + dashWidth, 0),
-        paint,
-      );
-      startX += dashWidth + dashSpace;
-    }
-  }
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
-}
-
-// ASIL SAYFA
 class AppointmentsScreen extends StatefulWidget {
-  const AppointmentsScreen({super.key});
+  const AppointmentsScreen({Key? key}) : super(key: key);
+
   @override
   State<AppointmentsScreen> createState() => _AppointmentsScreenState();
 }
 
 class _AppointmentsScreenState extends State<AppointmentsScreen> {
-  int _selectedTab = 0;
-
   @override
   void initState() {
     super.initState();
+    // Sayfa açıldıktan sonra ViewModel’den randevuları çek
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AppointmentsViewModel>(context, listen: false).fetchAppointments();
+      Provider.of<AppointmentsViewModel>(context, listen: false)
+          .fetchAppointments();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<AppointmentsViewModel, SearchViewModel>(
-      builder: (context, appointmentsViewModel, searchViewModel, child) {
-        final allAppointments = appointmentsViewModel.allAppointments;
+    final now = DateTime.now();
 
-        final List<ReservationModel> filteredAppointments =
-        searchViewModel.searchQuery.isEmpty
-            ? allAppointments
-            : allAppointments.where((reservation) {
-          final query = searchViewModel.searchQuery.toLowerCase();
-          final salonName = reservation.saloon?.saloonName.toLowerCase() ?? '';
-          final serviceName = reservation.service?.serviceName.toLowerCase() ?? '';
-          return salonName.contains(query) || serviceName.contains(query);
-        }).toList();
-
-        final now = DateTime.now();
-
-        final onayBekleyen = filteredAppointments.where((r) {
-          return r.status == ReservationStatus.pending;
-        }).toList();
-
-        final gelecek = filteredAppointments.where((r) {
-          final dateTime = r.reservationDate.add(Duration(
-            hours: int.parse(r.reservationTime.split(':')[0]),
-            minutes: int.parse(r.reservationTime.split(':')[1]),
-          ));
-          return dateTime.isAfter(now) &&
-              r.status == ReservationStatus.confirmed;
-        }).toList();
-
-        final gecmis = filteredAppointments.where((r) {
-          final dateTime = r.reservationDate.add(Duration(
-            hours: int.parse(r.reservationTime.split(':')[0]),
-            minutes: int.parse(r.reservationTime.split(':')[1]),
-          ));
-          return dateTime.isBefore(now) ||
-              r.status == ReservationStatus.cancelled ||
-              r.status == ReservationStatus.completed ||
-              r.status == ReservationStatus.noShow;
-        }).toList();
-        gecmis.sort((a, b) => b.reservationDate.compareTo(a.reservationDate));
-
-        List<ReservationModel> showList;
-        if (_selectedTab == 0) {
-          showList = onayBekleyen;
-        } else if (_selectedTab == 1) {
-          showList = gelecek;
-        } else {
-          showList = gecmis.take(5).toList();
-        }
-
-        return Scaffold(
-          backgroundColor: AppColors.backgroundColorLight,
-          body: appointmentsViewModel.isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-            children: [
-              AppointmentTabBar(
-                selectedIndex: _selectedTab,
-                onTabChanged: (i) => setState(() => _selectedTab = i),
-              ),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: appointmentsViewModel.fetchAppointments,
-                  child: showList.isEmpty
-                      ? _buildNoAppointmentsMessage(
-                    _selectedTab == 0
-                        ? "Onay bekleyen randevunuz bulunmamaktadır."
-                        : _selectedTab == 1
-                        ? "Yaklaşan randevunuz bulunmamaktadır."
-                        : "Geçmiş randevunuz bulunmamaktadır.",
-                    searchViewModel.searchQuery.isNotEmpty,
-                  )
-                      : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    itemCount: showList.length,
-                    itemBuilder: (context, index) {
-                      return _buildAppointmentCard(context, showList[index]);
-                    },
-                  ),
+    return DefaultTabController(
+      length: 4,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // — Sekme başlıkları
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8),
+              child: TabBar(
+                isScrollable: true,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicatorPadding: const EdgeInsets.symmetric(vertical: 8),
+                indicator: BoxDecoration(
+                  color: AppColors.primaryColor,
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                labelColor: Colors.white,
+                unselectedLabelColor: const Color(0xFFE4EAF6),
+                labelPadding:
+                const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  height: 1.13,
+                  letterSpacing: 0.1,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  height: 1.13,
+                  letterSpacing: 0.1,
+                ),
+                tabs: const [
+                  Tab(text: "Onay Bekleyen\nRandevularım"),
+                  Tab(text: "Gelecek\nRandevularım"),
+                  Tab(text: "Geçmiş\nRandevularım"),
+                  Tab(text: "İptal\nRandevularım"),
+                ],
               ),
-            ],
+            ),
           ),
-        );
-      },
+
+          // — İçerikler
+          Expanded(
+            child: Consumer2<AppointmentsViewModel, SearchViewModel>(
+              builder: (context, vm, searchVm, _) {
+                final all = vm.allAppointments;
+
+                // Arama filtresi uygula
+                final filtered = searchVm.searchQuery.isEmpty
+                    ? all
+                    : all.where((r) {
+                  final q = searchVm.searchQuery.toLowerCase();
+                  final salon =
+                      r.saloon?.saloonName.toLowerCase() ?? '';
+                  final service =
+                      r.service?.serviceName.toLowerCase() ?? '';
+                  return salon.contains(q) || service.contains(q);
+                }).toList();
+
+                // 4 ayrı liste
+                final onayBekleyen = filtered
+                    .where((r) => r.status == ReservationStatus.pending)
+                    .toList();
+
+                final gelecek = filtered.where((r) {
+                  final parts = r.reservationTime.split(':');
+                  final dateTime = r.reservationDate.add(Duration(
+                    hours: int.parse(parts[0]),
+                    minutes: int.parse(parts[1]),
+                  ));
+                  return dateTime.isAfter(now) &&
+                      r.status == ReservationStatus.confirmed;
+                }).toList();
+
+                final gecmis = filtered.where((r) {
+                  final parts = r.reservationTime.split(':');
+                  final dateTime = r.reservationDate.add(Duration(
+                    hours: int.parse(parts[0]),
+                    minutes: int.parse(parts[1]),
+                  ));
+                  return (dateTime.isBefore(now) &&
+                      r.status == ReservationStatus.confirmed) ||
+                      r.status == ReservationStatus.completed ||
+                      r.status == ReservationStatus.noShow;
+                }).toList()
+                  ..sort((a, b) =>
+                      b.reservationDate.compareTo(a.reservationDate));
+
+                final iptal = filtered
+                    .where((r) => r.status == ReservationStatus.cancelled)
+                    .toList();
+
+                final lists = [onayBekleyen, gelecek, gecmis, iptal];
+
+                return TabBarView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: lists.map((list) {
+                    if (list.isEmpty) {
+                      final idx = lists.indexOf(list);
+                      String msg;
+                      switch (idx) {
+                        case 0:
+                          msg =
+                          "Onay bekleyen randevunuz bulunmamaktadır.";
+                          break;
+                        case 1:
+                          msg =
+                          "Yaklaşan randevunuz bulunmamaktadır.";
+                          break;
+                        case 2:
+                          msg =
+                          "Geçmiş randevunuz bulunmamaktadır.";
+                          break;
+                        default:
+                          msg =
+                          "İptal edilen randevunuz bulunmamaktadır.";
+                      }
+                      return Center(
+                        child: Text(
+                          msg,
+                          style: AppFonts.bodyMedium(
+                            color: AppColors.textColorLight,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
+                    return RefreshIndicator(
+                      onRefresh: vm.fetchAppointments,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        itemCount: list.length,
+                        itemBuilder: (c, i) =>
+                            _buildAppointmentCard(c, list[i]),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  /// --- KART TASARIMI --- ///
-  Widget _buildAppointmentCard(BuildContext context, ReservationModel reservation) {
+  Widget _buildAppointmentCard(
+      BuildContext context, ReservationModel reservation) {
     Color getStatusColor() {
       switch (reservation.status) {
-        case ReservationStatus.pending: return Color(0xFFFFA800);
-        case ReservationStatus.confirmed: return Color(0xFF24C166);
-        case ReservationStatus.cancelled: return Color(0xFFFF4C4C);
-        case ReservationStatus.completed: return Color(0xFF4E61FA);
-        default: return Colors.grey;
+        case ReservationStatus.pending:
+          return const Color(0xFFFFA800);
+        case ReservationStatus.confirmed:
+          return const Color(0xFF24C166);
+        case ReservationStatus.cancelled:
+          return const Color(0xFFFF4C4C);
+        case ReservationStatus.completed:
+          return const Color(0xFF4E61FA);
+        default:
+          return Colors.grey;
       }
     }
 
     String getStatusText() {
       switch (reservation.status) {
-        case ReservationStatus.pending: return "Onay Bekliyor";
-        case ReservationStatus.confirmed: return "Onaylandı";
-        case ReservationStatus.cancelled: return "İptal Edildi";
-        case ReservationStatus.completed: return "Tamamlandı";
-        default: return "";
+        case ReservationStatus.pending:
+          return "Onay Bekliyor";
+        case ReservationStatus.confirmed:
+          return "Onaylandı";
+        case ReservationStatus.cancelled:
+          return "İptal Edildi";
+        case ReservationStatus.completed:
+          return "Tamamlandı";
+        default:
+          return "";
       }
     }
 
@@ -244,22 +225,21 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                     color: Color(0xFFFF4C4C), fontWeight: FontWeight.w600),
               ),
             ),
-            Spacer(),
+            const Spacer(),
             OutlinedButton(
               onPressed: () {},
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primaryColor),
                 foregroundColor: AppColors.primaryColor,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
               child: const Text("Düzenleme talep et",
                   style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ],
         );
-      }
-      if (reservation.status == ReservationStatus.cancelled ||
-          reservation.status == ReservationStatus.completed) {
+      } else {
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -267,8 +247,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
               onPressed: () {},
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFF4E61FA)),
-                foregroundColor: Color(0xFF4E61FA),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                foregroundColor: const Color(0xFF4E61FA),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
               child: const Text("Hizmet detayı",
                   style: TextStyle(fontWeight: FontWeight.w600)),
@@ -278,8 +259,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
               onPressed: () {},
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFF4E61FA)),
-                foregroundColor: Color(0xFF4E61FA),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                foregroundColor: const Color(0xFF4E61FA),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
               child: const Text("Tekrar oluştur",
                   style: TextStyle(fontWeight: FontWeight.w600)),
@@ -287,7 +269,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           ],
         );
       }
-      return SizedBox();
     }
 
     return Container(
@@ -296,10 +277,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFF7F9FD),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.primaryColor,
-          width: 1,
-        ),
+        border:
+        Border.all(color: AppColors.primaryColor.withOpacity(0.5), width: 1),
       ),
       child: Stack(
         children: [
@@ -308,14 +287,13 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
             children: [
               // Salon adı
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Text(
                       reservation.saloon?.saloonName ?? 'Salon Bilgisi Yok',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: "Poppins",
-                        fontWeight: FontWeight.w300,
+                        fontWeight: FontWeight.w600,
                         fontSize: 18,
                         color: AppColors.primaryColor,
                       ),
@@ -325,79 +303,77 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              // Adres + Nokta + Km
+              // Adres + Km
               Row(
                 children: [
                   Text(
-                    reservation.saloon?.saloonAddress ?? 'İstanbul',
+                    reservation.saloon?.saloonAddress ?? 'Adres bilgisi yok',
                     style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Icon(Icons.circle, size: 10, color: Colors.grey[300]),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Icon(Icons.circle, size: 6, color: Color(0xFFDEE5F0)),
                   ),
                   Text(
-                    "5.0 Km", // Statik
+                    "5.0 Km",
                     style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              // Statik Hizmet Detayları
+              // Hizmet detayı
               Text(
-                "Saç kesimi x 1 + Maske x 1", // Statik
+                "Saç kesimi x 1 + Maske x 1",
                 style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                ),
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 8),
-              // Tarih + Nokta + Fiyat (Statik)
+              // Tarih + Fiyat
               Row(
                 children: [
                   Text(
-                    DateFormat('d MMM y', 'tr_TR').format(reservation.reservationDate),
+                    DateFormat('d MMMM y, HH:mm', 'tr_TR')
+                        .format(reservation.reservationDate),
                     style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
+                        color: Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Icon(Icons.circle, size: 10, color: Colors.grey[300]),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Icon(Icons.circle, size: 6, color: Color(0xFFDEE5F0)),
                   ),
                   Text(
-                    "₺150", // Statik
+                    "₺150",
                     style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
+                        color: Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
               const SizedBox(height: 18),
+              // Aksiyonlar
               _buildActionRow(),
             ],
           ),
-          // Status badge SAĞ ÜSTTE
+          // Durum rozeti
           Positioned(
             top: 0,
             right: 0,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: getStatusColor(),
                 borderRadius: BorderRadius.circular(6),
@@ -405,36 +381,13 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
               child: Text(
                 getStatusText(),
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w400,
-                  fontSize: 15,
-                ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13),
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildNoAppointmentsMessage(String message, bool isSearching) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(isSearching ? Icons.search_off : Icons.event_busy,
-                size: 80, color: AppColors.iconColor.withAlpha(128)),
-            const SizedBox(height: 20),
-            Text(
-              isSearching
-                  ? 'Arama kriterlerinize uygun randevu bulunamadı.'
-                  : message,
-              style: AppFonts.bodyMedium(color: AppColors.textColorLight),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }

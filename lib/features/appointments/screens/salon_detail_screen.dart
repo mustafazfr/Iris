@@ -27,15 +27,14 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   final List<String> _galleryImages = [];
 
-  final List<Map<String, String>> _personnel = List.generate(10, (i) { // Örnek olması için sayıyı 10'a çıkardım
+  final List<Map<String, String>> _personnel = List.generate(10, (i) {
     return {
-      'name': 'Jhon Doe ${i+1}',
+      'name': 'Jhon Doe ${i + 1}',
       'role': 'Saç Stilisti',
       'avatarUrl': 'https://via.placeholder.com/100'
     };
   });
 
-  final List<String> _allPossibleCategories = ['Cilt Bakım', 'Nail Art', 'Saç Kesim', 'Saç Bakım'];
   String _selectedCategory = 'Cilt Bakım';
 
   // --- SEPET YÖNETİMİ ---
@@ -74,7 +73,10 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       final name = s.serviceName.toLowerCase();
       switch (_selectedCategory) {
         case 'Cilt Bakım':
-          return name.contains('cilt') || name.contains('bakım') || name.contains('kolajen') || name.contains('oksijen');
+          return name.contains('cilt') ||
+              name.contains('bakım') ||
+              name.contains('kolajen') ||
+              name.contains('oksijen');
         case 'Nail Art':
           return name.contains('nail') || name.contains('tırnak');
         case 'Saç Kesim':
@@ -89,7 +91,11 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   List<String> _getAvailableCategories(List<ServiceModel> allServices) {
     final Map<String, bool Function(String)> categoryChecks = {
-      'Cilt Bakım': (name) => name.contains('cilt') || name.contains('bakım') || name.contains('kolajen') || name.contains('oksijen'),
+      'Cilt Bakım': (name) =>
+      name.contains('cilt') ||
+          name.contains('bakım') ||
+          name.contains('kolajen') ||
+          name.contains('oksijen'),
       'Nail Art': (name) => name.contains('nail') || name.contains('tırnak'),
       'Saç Kesim': (name) => name.contains('saç') && name.contains('kesim'),
       'Saç Bakım': (name) => name.contains('saç') && name.contains('bakım'),
@@ -97,7 +103,8 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
     final availableCategories = <String>[];
     categoryChecks.forEach((categoryName, checkFunction) {
-      if (allServices.any((service) => checkFunction(service.serviceName.toLowerCase()))) {
+      if (allServices
+          .any((service) => checkFunction(service.serviceName.toLowerCase()))) {
         availableCategories.add(categoryName);
       }
     });
@@ -134,7 +141,8 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             return Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                padding:
+                const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                 decoration: BoxDecoration(
                   color: isSelected ? const Color(0xFF5A67D8) : Colors.transparent,
                   borderRadius: BorderRadius.circular(8.0),
@@ -194,11 +202,15 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         builder: (context, salonVM, commentsVM, child) {
           if (salonVM.isLoading) {
             return const Scaffold(
+              // Yükleme ekranının da arka planını beyaz yapabilirsiniz.
+              backgroundColor: Colors.white,
               body: Center(child: CircularProgressIndicator()),
             );
           }
           if (salonVM.salon == null) {
             return const Scaffold(
+              // Hata ekranının da arka planını beyaz yapabilirsiniz.
+              backgroundColor: Colors.white,
               body: Center(child: Text('Salon bilgileri alınamadı.')),
             );
           }
@@ -217,23 +229,17 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
           final filteredServices = _filterByCategory(salon.services);
 
+          // --- ANA DEĞİŞİKLİK BURADA ---
           return Scaffold(
+            // 1. DEĞİŞİKLİK: Scaffold'un arka plan rengi beyaz olarak ayarlandı.
+            backgroundColor: Colors.white,
             extendBodyBehindAppBar: true,
             appBar: _buildAppBar(context),
             body: Stack(
               children: [
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppColors.backgroundColorLight,
-                        AppColors.backgroundColorDark,
-                      ],
-                    ),
-                  ),
-                ),
+                // 2. DEĞİŞİKLİK: Gradient arka planı oluşturan Container buradan kaldırıldı.
+
+                // İçerik doğrudan Stack'in içine yerleştiriliyor.
                 SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 160),
                   child: Column(
@@ -256,6 +262,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                                 isScrollable: true,
                                 labelPadding: EdgeInsets.zero,
                                 indicatorColor: Colors.transparent,
+                                dividerColor: Colors.transparent,
                                 padding: EdgeInsets.zero,
                                 tabs: [
                                   _buildNewTab('Hakkımızda'),
@@ -267,7 +274,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                             ),
                             const SizedBox(height: 24),
                             SizedBox(
-                              height: 450,
+                              height: 650,
                               child: TabBarView(
                                 physics: const NeverScrollableScrollPhysics(),
                                 children: [
@@ -281,7 +288,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 160),
+                      const SizedBox(height: 0),
                     ],
                   ),
                 ),
@@ -502,6 +509,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          // NOT: Bu bilgileri dinamik olarak salon modelinden almak en iyisidir.
           _buildWorkingHoursRow('Haftaiçi', '09:00 - 21:00'),
           const SizedBox(height: 8),
           _buildWorkingHoursRow('Haftasonu', '09:00 - 22:00'),
@@ -595,15 +603,14 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     );
   }
 
-  // DEĞİŞİKLİK: Personel bölümü ListView'dan GridView'a çevrildi.
   Widget _personnelSection() {
     return GridView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,        // Her satırda 3 personel
-        crossAxisSpacing: 16,     // Yatay boşluk
-        mainAxisSpacing: 16,      // Dikey boşluk
-        childAspectRatio: 0.8,    // Genişlik/Yükseklik oranı
+        crossAxisCount: 3,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.8,
       ),
       itemCount: _personnel.length,
       itemBuilder: (context, i) {
@@ -866,20 +873,6 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           );
         },
       ),
-    );
-  }
-  Widget _buildCommentsSection(CommentsViewModel vm) {
-    if (vm.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (vm.error != null) {
-      return Center(child: Text(vm.error!));
-    }
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: vm.comments.length,
-      itemBuilder: (context, i) => _buildCommentListItem(vm.comments[i]),
     );
   }
   Widget _buildCommentListItem(CommentModel c) {
@@ -1185,7 +1178,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     );
   }
 
-  // ---- YENİ ONAY POP-UP KODU ----
+  // ---- ONAY POP-UP KODU (DEĞİŞTİRİLDİ) ----
   void _showConfirmationSheet(BuildContext context, SalonDetailViewModel viewModel) {
     const primaryColor = Color(0xFF5A67D8);
 
@@ -1213,10 +1206,9 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             double totalAmount = subtotal - _couponDiscount;
 
             void removeServiceFromPopup(ServiceModel s) {
-              setState(() {});
-              modalSetState(() {
-                _removeService(s);
-              });
+              // Ana state'i ve modal'ın state'ini güncelle
+              setState(() { _removeService(s); });
+              modalSetState(() {});
             }
 
             Future<void> selectDate() async {
@@ -1232,17 +1224,20 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               }
             }
 
-            Future<void> selectTime() async {
-              final TimeOfDay? t = await showTimePicker(
-                context: context,
-                initialTime: pickedTime,
+            // DEĞİŞİKLİK: Eski selectTime fonksiyonu yerine yeni saat seçiciyi çağıran fonksiyon
+            Future<void> selectTimeSlot() async {
+              final TimeOfDay? selectedTime = await _showTimeSlotPicker(
+                context,
+                viewModel,
+                pickedDate,
               );
-              if (t != null) {
-                modalSetState(() => pickedTime = t);
-                final formatted = t.format(context);
+              if (selectedTime != null) {
+                modalSetState(() => pickedTime = selectedTime);
+                final formatted = selectedTime.format(context);
                 viewModel.selectTime(formatted);
               }
             }
+
 
             return Padding(
               padding: EdgeInsets.only(
@@ -1269,7 +1264,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                         Row(
                           children: [
                             Text(
-                              DateFormat('dd.MM.yyyy').format(pickedDate),
+                              DateFormat('dd.MM.yyyy', 'tr_TR').format(pickedDate),
                               style: AppFonts.poppinsBold(fontSize: 16),
                             ),
                             const SizedBox(width: 8),
@@ -1280,8 +1275,9 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // DEĞİŞİKLİK: InkWell'in onTap'ı yeni fonksiyonu çağırıyor
                   InkWell(
-                    onTap: selectTime,
+                    onTap: selectTimeSlot,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1325,8 +1321,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     );
   }
 
-  //--- ONAY POP-UP YARDIMCI WIDGET'LARI ---
-
+  // --- ONAY POP-UP YARDIMCI WIDGET'LARI (DEĞİŞİKLİK YOK) ---
   Widget _buildConfirmationSalonInfoCard(SaloonModel salon, Color primaryColor) {
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -1484,10 +1479,157 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           ),
         ),
         child: Text(
-          'Randevuyu Onayla',
+          'Uygun Saati Seç ve Onayla',
           style: AppFonts.poppinsBold(fontSize: 16, color: Colors.white),
         ),
       ),
+    );
+  }
+
+  // YENİ: Müsait saatleri üreten yardımcı fonksiyon
+  List<TimeOfDay> _generateAvailableTimeSlots({
+    required TimeOfDay openingTime,
+    required TimeOfDay closingTime,
+    required List<TimeOfDay> bookedTimes,
+    required Duration interval,
+  }) {
+    final slots = <TimeOfDay>[];
+    // DateTime objesi ile saatleri daha kolay yönetebiliriz
+    var now = DateTime.now();
+    var currentTime = DateTime(now.year, now.month, now.day, openingTime.hour, openingTime.minute);
+    var endTime = DateTime(now.year, now.month, now.day, closingTime.hour, closingTime.minute);
+
+    while (currentTime.isBefore(endTime)) {
+      final timeOfDay = TimeOfDay.fromDateTime(currentTime);
+      // Eğer bu saat, rezerve edilmiş (dolu) saatler arasında değilse listeye ekle
+      if (!bookedTimes.contains(timeOfDay)) {
+        slots.add(timeOfDay);
+      }
+      // Bir sonraki zaman dilimine geç
+      currentTime = currentTime.add(interval);
+    }
+    return slots;
+  }
+
+  // YENİ: Saat seçimi için özel Modal Bottom Sheet gösteren fonksiyon
+  Future<TimeOfDay?> _showTimeSlotPicker(
+      BuildContext context, SalonDetailViewModel viewModel, DateTime selectedDate) async {
+    const primaryColor = Color(0xFF5A67D8);
+
+    // NOT: Bu veriler normalde ViewModel veya salon modeli üzerinden gelmelidir.
+    // Şimdilik örnek olarak burada tanımlıyoruz.
+    final openingTime = const TimeOfDay(hour: 9, minute: 0);
+    final closingTime = const TimeOfDay(hour: 21, minute: 0);
+
+    // NOT: Bu "dolu saatler" listesi, seçilen tarihe göre veritabanından çekilmelidir.
+    // Örnek olarak bir liste oluşturuyoruz.
+    final bookedTimes = [
+      const TimeOfDay(hour: 10, minute: 30),
+      const TimeOfDay(hour: 14, minute: 0),
+      const TimeOfDay(hour: 14, minute: 15),
+    ];
+
+    final availableSlots = _generateAvailableTimeSlots(
+      openingTime: openingTime,
+      closingTime: closingTime,
+      bookedTimes: bookedTimes,
+      interval: const Duration(minutes: 15),
+    );
+
+    return showModalBottomSheet<TimeOfDay>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
+      ),
+      builder: (context) {
+        TimeOfDay? selectedSlot;
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter modalSetState) {
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Uygun Saati Seçin', style: AppFonts.poppinsBold(fontSize: 20)),
+                  const SizedBox(height: 8),
+                  Text(
+                    DateFormat('dd MMMM yyyy, EEEE', 'tr_TR').format(selectedDate),
+                    style: AppFonts.bodyMedium(color: Colors.grey.shade600),
+                  ),
+                  const Divider(height: 24),
+                  if (availableSlots.isEmpty)
+                    const Center(child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32.0),
+                      child: Text("Bugün için uygun saat bulunmamaktadır."),
+                    ))
+                  else
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          childAspectRatio: 2.5,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                        itemCount: availableSlots.length,
+                        itemBuilder: (context, index) {
+                          final slot = availableSlots[index];
+                          final isSelected = selectedSlot == slot;
+                          return GestureDetector(
+                            onTap: () {
+                              modalSetState(() {
+                                selectedSlot = slot;
+                              });
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isSelected ? primaryColor : Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: primaryColor),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  slot.format(context),
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : primaryColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: selectedSlot == null ? null : () {
+                        // Seçilen saati bir önceki ekrana geri döndür
+                        Navigator.pop(context, selectedSlot);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                      ),
+                      child: Text(
+                        'Saati Onayla',
+                        style: AppFonts.poppinsBold(fontSize: 16, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
