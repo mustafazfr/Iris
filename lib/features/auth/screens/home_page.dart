@@ -179,15 +179,15 @@ class _HomePageState extends State<HomePage> {
                   child: ElevatedButton(
                     onPressed: _signIn,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[200],
-                      foregroundColor: Colors.black87,
+                      backgroundColor: AppColors.primaryColor,
+                      foregroundColor: AppColors.primaryColor,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: Text('Giriş Yap', style: AppFonts.h6SemiBold(color: AppColors.textColorDark)),
+                    child: Text('Giriş Yap', style: AppFonts.h6SemiBold(color: Colors.white)),
                   ),
                 ),
                 const SizedBox(height: 16),

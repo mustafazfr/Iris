@@ -1180,7 +1180,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   // ---- ONAY POP-UP KODU (DEĞİŞTİRİLDİ) ----
   void _showConfirmationSheet(BuildContext context, SalonDetailViewModel viewModel) {
-    const primaryColor = Color(0xFF5A67D8);
+    const primaryColor = AppColors.primaryColor;
 
     showModalBottomSheet(
       context: context,
