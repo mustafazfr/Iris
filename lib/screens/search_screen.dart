@@ -45,13 +45,14 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Tamamen beyaz arka plan
+      backgroundColor: Colors.white,
       body: SafeArea(
+        top: false,
         child: Column(
           children: [
             // --- SEARCH BAR ---
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: TextField(
                 controller: _searchController,
                 onChanged: (_) => setState(() {}),
@@ -79,7 +80,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
 
-            // --- KATEGORİ CHİPLERİ ---
+            // --- CATEGORY CHIPS ---
             SizedBox(
               height: 40,
               child: ListView.builder(
@@ -98,8 +99,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         setState(() => _selectedCategory = cat);
                       },
                       selectedColor: AppColors.accentColor,
-                      // ✨ DEĞİŞİKLİK BURADA YAPILDI ✨
-                      backgroundColor: Colors.white, // Seçili değilken arka plan rengi
+                      backgroundColor: Colors.white,
                       labelStyle: AppFonts.bodyMedium(
                         color: sel ? Colors.white : AppColors.textColorDark,
                       ).copyWith(
@@ -113,7 +113,6 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                       ),
                       elevation: sel ? 3 : 0,
-                      shadowColor: Colors.black.withOpacity(0.1),
                     ),
                   );
                 },
@@ -122,7 +121,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
             const SizedBox(height: 8),
 
-            // --- SALON LİSTESİ ---
+            // --- SALON LIST ---
             Expanded(
               child: FutureBuilder<List<SaloonModel>>(
                 future: _futureSaloons,
@@ -139,10 +138,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     );
                   }
 
-                  // Tüm salonlar
                   final all = snap.data ?? [];
-
-                  // 1) İsim filtresi
                   final bySearch = _searchController.text.isEmpty
                       ? all
                       : all
@@ -150,30 +146,22 @@ class _SearchScreenState extends State<SearchScreen> {
                       .toLowerCase()
                       .contains(_searchController.text.toLowerCase()))
                       .toList();
-
-                  // 2) Kategori filtresi
                   final filtered = _selectedCategory == 'Tümü'
                       ? bySearch
                       : bySearch.where((s) {
-                    // Salonun servisleri arasında seçili kategori var mı?
                     return s.services.any(
                             (srv) => srv.serviceName == _selectedCategory);
                   }).toList();
 
-                  if (filtered.isEmpty) {
-                    return _buildNoResults();
-                  }
+                  if (filtered.isEmpty) return _buildNoResults();
 
                   return ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     separatorBuilder: (_, __) =>
                         Divider(color: AppColors.dividerColor),
                     itemCount: filtered.length,
-                    itemBuilder: (ctx, idx) {
-                      final salon = filtered[idx];
-                      return _buildSalonRow(salon);
-                    },
+                    itemBuilder: (ctx, idx) => _buildSalonRow(filtered[idx]),
                   );
                 },
               ),
@@ -195,25 +183,19 @@ class _SearchScreenState extends State<SearchScreen> {
         );
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0), // Dikey boşluk eklendi
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Resim
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: salon.titlePhotoUrl != null && salon.titlePhotoUrl!.isNotEmpty
+              child: salon.titlePhotoUrl != null &&
+                  salon.titlePhotoUrl!.isNotEmpty
                   ? Image.network(
                 salon.titlePhotoUrl!,
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 80,
-                  height: 80,
-                  color: AppColors.backgroundColorDark,
-                  child: Icon(Icons.store, color: AppColors.iconColor),
-                ),
               )
                   : Container(
                 width: 80,
@@ -222,18 +204,13 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Icon(Icons.store, color: AppColors.iconColor),
               ),
             ),
-
             const SizedBox(width: 12),
-
-            // Bilgiler
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Başlık + Puan
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Text(
@@ -243,10 +220,10 @@ class _SearchScreenState extends State<SearchScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Row(
                         children: [
-                          Icon(Icons.star, size: 14, color: AppColors.starColor),
+                          Icon(Icons.star,
+                              size: 14, color: AppColors.starColor),
                           const SizedBox(width: 4),
                           Text(
                             salon.avgRating != null
@@ -258,31 +235,26 @@ class _SearchScreenState extends State<SearchScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 8),
-
-                  // Servis etiketleri (badge'ler)
                   if (salon.services.isNotEmpty)
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: salon.services
-                          .map((srv) => Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEF3FD), // görseldeki bg
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          srv.serviceName,
-                          style: AppFonts.bodySmall(
-                            color:
-                            const Color(0xFF5360F4), // görseldeki text
+                      children: salon.services.map((srv) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF3FD),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        ),
-                      ))
-                          .toList(),
+                          child: Text(
+                            srv.serviceName,
+                            style: AppFonts.bodySmall(
+                                color: const Color(0xFF5360F4)),
+                          ),
+                        );
+                      }).toList(),
                     ),
                 ],
               ),
@@ -293,31 +265,29 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildNoResults() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off,
-              size: 80, color: AppColors.textColorLight.withOpacity(0.5)),
-          const SizedBox(height: 16),
-          Text(
-            'Arama sonucunuz bulunamadı.',
-            style: AppFonts.poppinsBold(
-              fontSize: 18,
-              color: AppColors.textColorLight.withOpacity(0.8),
-            ),
+  Widget _buildNoResults() => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.search_off,
+            size: 80, color: AppColors.textColorLight.withOpacity(0.5)),
+        const SizedBox(height: 16),
+        Text(
+          'Arama sonucunuz bulunamadı.',
+          style: AppFonts.poppinsBold(
+            fontSize: 18,
+            color: AppColors.textColorLight.withOpacity(0.8),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Farklı bir kategori veya isim deneyin.',
-            textAlign: TextAlign.center,
-            style: AppFonts.bodyMedium(
-              color: AppColors.textColorLight.withOpacity(0.6),
-            ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Farklı bir kategori veya isim deneyin.',
+          textAlign: TextAlign.center,
+          style: AppFonts.bodyMedium(
+            color: AppColors.textColorLight.withOpacity(0.6),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }

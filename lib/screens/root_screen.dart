@@ -29,36 +29,35 @@ class BigScreenTitleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      // bottom: 24 — Favoriler sayfasındaki boşlukla eşit
-      padding: const EdgeInsets.only(
-        top: 60,
-        left: 20,
-        right: 20,
-        bottom: 24,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          GestureDetector(
-            onTap: onBack,
-            child: const Icon(
-              Icons.arrow_back,
-              color: Color(0xFF211E3B),
-              size: 28,
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        // top: cihazın status bar boşluğu SafeArea ile otomatik,
+        // sonraki manuel boşluk 16px, alt boşluk 24px
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: onBack,
+              child: const Icon(
+                Icons.arrow_back,
+                color: Color(0xFF211E3B),
+                size: 28,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontFamily: "Poppins",
-              fontWeight: FontWeight.w600,
-              fontSize: 24,
-              color: Colors.black,
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: "Poppins",
+                fontWeight: FontWeight.w600,
+                fontSize: 24,
+                color: Colors.black,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -130,7 +129,6 @@ class _MainAppState extends State<MainApp> {
 
   PreferredSizeWidget? _getAppBar(BuildContext context) {
     if (_selectedIndex == 0) return _dashboardAppBar(context);
-    // Diğer sayfalarda AppBar yerine BigScreenTitleBar kullanılıyor
     return null;
   }
 
@@ -145,7 +143,7 @@ class _MainAppState extends State<MainApp> {
       automaticallyImplyLeading: false,
       backgroundColor: AppColors.background,
       elevation: 0.0,
-      shape: Border(
+      shape: const Border(
         bottom: BorderSide(
           color: AppColors.dividerColor,
           width: 1,
@@ -181,7 +179,7 @@ class _MainAppState extends State<MainApp> {
             child: GestureDetector(
               onTap: () => _onItemTapped(2),
               child: Container(
-                height: 8.0,
+                height: 40,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF3F4F6),
@@ -192,8 +190,7 @@ class _MainAppState extends State<MainApp> {
                     Expanded(
                       child: Text(
                         'Salon ara...',
-                        style:
-                        AppFonts.bodyMedium(color: AppColors.textColorLight),
+                        style: AppFonts.bodyMedium(color: AppColors.textColorLight),
                       ),
                     ),
                     Icon(Icons.tune, color: AppColors.textColorLight),
@@ -247,7 +244,7 @@ class _MainAppState extends State<MainApp> {
       child: InkWell(
         onTap: () => _onItemTapped(index),
         borderRadius: BorderRadius.circular(16),
-        child: Container(
+        child: SizedBox(
           height: double.infinity,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -256,9 +253,7 @@ class _MainAppState extends State<MainApp> {
                 duration: const Duration(milliseconds: 250),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? Colors.white.withOpacity(0.25)
-                      : Colors.transparent,
+                  color: isSelected ? Colors.white.withOpacity(0.25) : null,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: Colors.white, size: 28),
