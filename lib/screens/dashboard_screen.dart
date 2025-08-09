@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../features/appointments/screens/appointments_screen.dart';
 import '../features/appointments/screens/salon_detail_screen.dart';
+import '../viewmodels/appointments_viewmodel.dart';
 import 'fullscreen_map_screen.dart';
 
 // ------------------------ Randevularım ve Kategori Widget'ları ------------------------
@@ -322,11 +323,13 @@ class _DashboardContentState extends State<_DashboardContent> {
     _nearbySaloonsFuture = vm.getNearbySaloons();
     _topRatedSaloonsFuture = vm.getTopRatedSaloons();
     _campaignSaloonsFuture = vm.getCampaignSaloons();
+    Provider.of<AppointmentsViewModel>(context, listen: false).fetchDashboardSummary();
   }
 
   @override
   Widget build(BuildContext context) {
     final vm = Provider.of<DashboardViewModel>(context);
+    final appt = context.watch<AppointmentsViewModel>();
     return RefreshIndicator(
       color: AppColors.primaryColor,
       onRefresh: () async {
@@ -335,6 +338,7 @@ class _DashboardContentState extends State<_DashboardContent> {
           _topRatedSaloonsFuture = vm.getTopRatedSaloons();
           _campaignSaloonsFuture = vm.getCampaignSaloons();
         });
+        await context.read<AppointmentsViewModel>().fetchDashboardSummary();
       },
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: 120.0),
@@ -343,7 +347,6 @@ class _DashboardContentState extends State<_DashboardContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ——— Harita Bölümü ———
-// ——— Harita Bölümü ———
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: ClipRRect(
@@ -449,10 +452,10 @@ class _DashboardContentState extends State<_DashboardContent> {
 
             // ---------------------- BURAYA EKLEDİM ------------------------
             UpcomingAppointmentsCard(
-              salonName: "İris Güzellik Salonu",
-              dateStr: "31 Tem 25",
-              timeStr: "09:00",
-              otherCount: 1,
+              salonName: appt.hasUpcoming ? appt.nextSalonName! : "Yaklaşan randevu yok",
+              dateStr: appt.hasUpcoming ? appt.nextDateStr! : "",
+              timeStr: appt.hasUpcoming ? appt.nextTimeStr! : "",
+              otherCount: appt.otherActiveCount,
             ),
             const CategorySection(),
 
