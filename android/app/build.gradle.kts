@@ -1,8 +1,17 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+val props = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) load(f.inputStream())
+}
+val mapsKey: String = props.getProperty("MAPS_API_KEY") ?: ""
 
 android {
     namespace = "com.example.denemeye_devam"
@@ -22,15 +31,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        // Gradle property > Env var sırası ile oku
-        val mapsKey = providers.gradleProperty("MAPS_API_KEY").orNull
-            ?: providers.environmentVariable("MAPS_API_KEY").orNull
-            ?: ""
+        manifestPlaceholders += mapOf("MAPS_API_KEY" to mapsKey)
 
-        // Manifest placeholder'ını bas
-        manifestPlaceholders["MAPS_API_KEY"] = mapsKey
-        // İstersen zorunlu kıl:
-        // check(mapsKey.isNotBlank()) { "MAPS_API_KEY tanımlı değil" }
     }
 
     buildTypes {
