@@ -117,6 +117,26 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
   // --- WIDGET BUILDER'LAR (Artık Sınıfın İçinde ve Doğru Çalışıyor) ---
 
+  String _isoDayTr(int iso) {
+    switch (iso) {
+      case 1: return 'Pazartesi';
+      case 2: return 'Salı';
+      case 3: return 'Çarşamba';
+      case 4: return 'Perşembe';
+      case 5: return 'Cuma';
+      case 6: return 'Cumartesi';
+      case 7: return 'Pazar';
+      default: return '-';
+    }
+  }
+
+  String _fmtHHmm(String? t) {
+    if (t == null || t.isEmpty) return '--:--';
+    // "HH:MM:SS" → "HH:MM"
+    return t.length >= 5 ? t.substring(0, 5) : t;
+  }
+
+
   AppBar _buildAppBar(BuildContext context, SaloonModel salon) {
     final favVM = context.watch<FavoritesViewModel>();
     final isFav = favVM.isSalonFavorite(widget.salonId);
@@ -761,11 +781,45 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 16),
           // NOT: Bu bilgileri dinamik olarak salon modelinden almak en iyisidir.
-          _buildWorkingHoursRow('Haftaiçi', '09:00 - 21:00'),
-          const SizedBox(height: 8),
-          _buildWorkingHoursRow('Haftasonu', '09:00 - 22:00'),
+          const SizedBox(height: 16),
+
+          Builder(
+            builder: (context) {
+              final salonVM = context.watch<SalonDetailViewModel>();
+
+              if (salonVM.isWorkingHoursLoading) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              } else if (salonVM.workingHours.isEmpty) {
+                return Text(
+                  'Çalışma saatleri bulunamadı.',
+                  style: TextStyle(color: Colors.grey.shade600),
+                );
+              } else {
+                return Column(
+                  children: salonVM.workingHours.map((wh) {
+                    final hours = wh.isClosed
+                        ? 'Kapalı'
+                        : '${_fmtHHmm(wh.openingTime)} - ${_fmtHHmm(wh.closingTime)}';
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: _buildWorkingHoursRow(_isoDayTr(wh.dayOfWeek), hours),
+                    );
+                  }).toList(),
+                );
+              }
+            },
+          ),
+
+          const SizedBox(height: 24),
+
+
+
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 24),
