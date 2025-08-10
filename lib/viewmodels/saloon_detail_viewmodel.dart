@@ -1,122 +1,113 @@
-import 'package:denemeye_devam/models/personal_model.dart';
-import 'package:denemeye_devam/models/reservation_model.dart';
-import 'package:denemeye_devam/models/saloon_model.dart';
-import 'package:denemeye_devam/models/service_model.dart';
+// lib/viewmodels/saloon_detail_viewmodel.dart
+
 import 'package:flutter/material.dart';
-import 'package:denemeye_devam/repositories/saloon_repository.dart';
-import 'package:denemeye_devam/repositories/reservation_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:denemeye_devam/repositories/favorites_repository.dart';
+import '../models/saloon_model.dart';
+import '../models/salon_category_summary_model.dart';
+import '../models/salon_service_model.dart';
+import '../repositories/saloon_repository.dart';
 
 class SalonDetailViewModel extends ChangeNotifier {
   final SaloonRepository _saloonRepository = SaloonRepository(Supabase.instance.client);
-  final ReservationRepository _reservationRepository = ReservationRepository(Supabase.instance.client);
-  final FavoritesRepository _favoritesRepository = FavoritesRepository(Supabase.instance.client);
 
-  // --- STATE DEĞİŞKENLERİ ---
-  bool isFavorite = false;
-  bool _isLoading = true;
-  bool get isLoading => _isLoading;
+  // --- EKRAN STATE'LERİ ---
+  SaloonModel? salon;
+  bool isLoading = true;
+  List<SalonCategorySummaryModel> categories = [];
+  List<SalonServiceModel> services = [];
+  SalonCategorySummaryModel? selectedCategory;
+  bool isServiceLoading = false;
 
-  SaloonModel? _salon;
-  SaloonModel? get salon => _salon;
+  // --- SEPET STATE'LERİ (Daha önce State sınıfındaydı, şimdi burada) ---
+  final Map<SalonServiceModel, int> _cart = {};
+  Map<SalonServiceModel, int> get cart => _cart;
 
-  List<PersonalModel> _employees = [];
-  List<PersonalModel> get employees => _employees;
+  int get totalCartCount => _cart.values.fold(0, (sum, count) => sum + count);
+  double get totalCartPrice {
+    if (_cart.isEmpty) return 0.0;
+    double total = 0;
+    _cart.forEach((service, count) {
+      total += service.saloonPrice * count;
+    });
+    return total;
+  }
 
-  // Randevu alma süreci için
-  DateTime? selectedDate;
+  // --- RANDEVU TARİH/SAAT STATE'LERİ ---
+  DateTime selectedDate = DateTime.now();
   String? selectedTimeSlot;
-  ServiceModel? selectedService;
 
-  // --- ANA VERİ ÇEKME FONKSİYONU ---
+  // --- METODLAR ---
+
   Future<void> fetchSalonDetails(String salonId) async {
-    _isLoading = true;
+    isLoading = true;
     notifyListeners();
 
     try {
       final results = await Future.wait([
         _saloonRepository.getSaloonById(salonId),
-        _saloonRepository.getEmployeesBySaloon(salonId),
+        _saloonRepository.fetchSalonCategorySummary(salonId),
       ]);
 
-      _salon = results[0] as SaloonModel?;
-      _employees = results[1] as List<PersonalModel>;
-      selectedDate = DateTime.now();
+      salon = results[0] as SaloonModel?;
+      categories = results[1] as List<SalonCategorySummaryModel>;
+
+      if (categories.isNotEmpty) {
+        await selectCategory(categories.first, initialFetch: true);
+      }
     } catch (e) {
       debugPrint("fetchSalonDetails Hata: $e");
     } finally {
-      _isLoading = false;
+      isLoading = false;
       notifyListeners();
     }
   }
 
-  // --- RANDEVU SÜRECİ YÖNETİMİ ---
+  Future<void> selectCategory(SalonCategorySummaryModel category, {bool initialFetch = false}) async {
+    if (salon == null || (!initialFetch && selectedCategory == category)) return;
+
+    selectedCategory = category;
+    isServiceLoading = true;
+    notifyListeners();
+
+    try {
+      services = await _saloonRepository.fetchSalonServicesByCategory(
+        saloonId: salon!.saloonId,
+        categoryId: category.categoryId,
+      );
+    } catch (e) {
+      debugPrint('${category.name} için servisler alınırken hata: $e');
+      services = [];
+    } finally {
+      isServiceLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // --- SEPET METODLARI ---
+  void addServiceToCart(SalonServiceModel service) {
+    _cart[service] = (_cart[service] ?? 0) + 1;
+    notifyListeners();
+  }
+
+  void removeServiceFromCart(SalonServiceModel service) {
+    if (_cart.containsKey(service)) {
+      _cart.remove(service);
+      notifyListeners();
+    }
+  }
+
+  bool isServiceInCart(SalonServiceModel service) {
+    return _cart.containsKey(service);
+  }
+
+  // --- RANDEVU TARİH/SAAT METODLARI ---
   void selectNewDate(DateTime date) {
     selectedDate = date;
-    // Yeni tarih seçildiğinde, saat/çalışan gibi seçimleri sıfırla
-    selectedTimeSlot = null;
     notifyListeners();
   }
 
   void selectTime(String time) {
     selectedTimeSlot = time;
-    notifyListeners();
-  }
-
-  void selectServiceForAppointment(ServiceModel service) {
-    selectedService = service;
-    notifyListeners();
-  }
-
-
-  // --- RANDEVU OLUŞTURMA FONKSİYONU ---
-  Future<void> createReservation() async {
-    // Gerekli tüm bilgiler seçilmiş mi diye kontrol et
-    if (salon == null ||
-        selectedDate == null ||
-        selectedTimeSlot == null ||
-        selectedService == null) {
-      throw Exception('Lütfen randevu için tüm alanları seçin.');
-    }
-
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) {
-      throw Exception('Randevu oluşturmak için giriş yapmalısınız.');
-    }
-
-    final newReservation = ReservationModel(
-      reservationId: '', // DB kendi atayacak
-      userId: userId,
-      saloonId: salon!.saloonId,
-      reservationDate: selectedDate!,
-      reservationTime: selectedTimeSlot!,
-      totalPrice: selectedService!.basePrice, // Fiyatı hizmetten al
-      status: ReservationStatus.pending, // Başlangıç durumu
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
-    // Repository aracılığıyla randevuyu veritabanına kaydet
-    await _reservationRepository.createReservation(newReservation);
-
-    // İşlem sonrası seçimleri temizle
-    selectedTimeSlot = null;
-    selectedService = null;
-    notifyListeners();
-  }
-  Future<void> toggleFavorite() async {
-    if (salon == null) return;
-
-    // Mevcut durumun tersini yap
-    if (isFavorite) {
-      await _favoritesRepository.removeFavorite(salon!.saloonId);
-    } else {
-      await _favoritesRepository.addFavorite(salon!.saloonId);
-    }
-
-    // Durumu güncelle ve arayüzü bilgilendir
-    isFavorite = !isFavorite;
     notifyListeners();
   }
 }

@@ -3,6 +3,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/personal_model.dart';
+import '../models/salon_category_summary_model.dart';
+import '../models/salon_service_model.dart';
 
 class SaloonRepository {
   final SupabaseClient _client;
@@ -91,6 +93,45 @@ class SaloonRepository {
     } catch (e) {
       print('Hata - searchSaloons: $e');
       return [];
+    }
+  }
+  Future<List<SalonCategorySummaryModel>> fetchSalonCategorySummary(String saloonId) async {
+    try {
+      final data = await _client
+          .from('v_saloon_category_summary')
+          .select()
+          .eq('saloon_id', saloonId)
+          .order('sort_order'); // Kategori sıralamasına göre getir
+
+      return (data as List)
+          .map((json) => SalonCategorySummaryModel.fromJson(json))
+          .toList();
+    } catch (e) {
+      print('Hata - fetchSalonCategorySummary: $e');
+      rethrow;
+    }
+  }
+
+  // YENİ EKLENDİ: Bir salonun belirli bir kategorideki servislerini çeker.
+  Future<List<SalonServiceModel>> fetchSalonServicesByCategory({
+    required String saloonId,
+    required String categoryId,
+  }) async {
+    try {
+      final data = await _client
+          .from('v_saloon_services_by_category')
+          .select()
+          .eq('saloon_id', saloonId)
+          .eq('category_id', categoryId)
+          .eq('is_active', true) // Sadece aktif olanları getir
+          .order('service_name');
+
+      return (data as List)
+          .map((json) => SalonServiceModel.fromJson(json))
+          .toList();
+    } catch (e) {
+      print('Hata - fetchSalonServicesByCategory: $e');
+      rethrow;
     }
   }
 }
