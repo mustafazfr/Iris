@@ -13,9 +13,13 @@ import '../../../models/salon_service_model.dart';
 import '../../../viewmodels/comments_viewmodel.dart';
 import '../../../viewmodels/favorites_viewmodel.dart';
 import '../../../viewmodels/saloon_detail_viewmodel.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+
 
 // Ana Widget (Değişiklik yok)
 class SalonDetailScreen extends StatefulWidget {
+
   final String salonId;
   const SalonDetailScreen({super.key, required this.salonId});
 
@@ -29,6 +33,9 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   // Sepet mantığı artık ViewModel'de olduğu için _cart, _addService gibi değişken ve fonksiyonları sildik.
   // Sadece UI ile ilgili, geçici state'ler burada kalabilir.
   int _selectedGalleryIndex = 1;
+  GoogleMapController? _miniMapController;
+  double _miniMapZoom = 13.5; // başlangıç yakınlığı
+
 
   @override
   void initState() {
@@ -785,21 +792,105 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Container(
-            height: 140,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              color: Colors.grey.shade100,
-              image: const DecorationImage(
-                image: AssetImage('assets/map_placeholder.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
+          _buildSalonMiniMap(salon,zoom:13.5),
         ],
       ),
     );
   }
+  Widget _buildSalonMiniMap(SaloonModel salon, {double zoom = 13.5}) {
+    final lat = salon.latitude;
+    final lng = salon.longitude;
+    _miniMapZoom = zoom;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(15),
+      child: SizedBox(
+        height: 160,
+        child: (lat == null || lng == null)
+            ? Container(
+          color: Colors.grey.shade100,
+          alignment: Alignment.center,
+          child: const Text('Konum bulunamadı'),
+        )
+            : Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: LatLng(lat, lng),
+                zoom: _miniMapZoom,
+              ),
+              onMapCreated: (c) => _miniMapController = c,
+              markers: {
+                Marker(
+                  markerId: const MarkerId('salon'),
+                  position: LatLng(lat, lng),
+                  infoWindow: InfoWindow(
+                    title: salon.saloonName,
+                    snippet: salon.saloonAddress,
+                  ),
+                ),
+              },
+              // sadece butonlarla zoom yapalım
+              zoomGesturesEnabled: false,
+              scrollGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+              liteModeEnabled: false, // <-- animasyon için kapalı
+              zoomControlsEnabled: false,
+              compassEnabled: false,
+              mapToolbarEnabled: false,
+            ),
+
+            // Sağ üst +/-
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Column(
+                children: [
+                  _zoomBtn(Icons.add, _zoomInMiniMap),
+                  const SizedBox(height: 8),
+                  _zoomBtn(Icons.remove, _zoomOutMiniMap),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _zoomBtn(IconData icon, VoidCallback onTap) {
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: SizedBox(
+          width: 36, height: 36,
+          child: Icon(icon, size: 20, color: Colors.black87),
+        ),
+      ),
+    );
+  }
+
+  void _zoomInMiniMap() async {
+    if (_miniMapController == null) return;
+    _miniMapZoom = (_miniMapZoom + 1).clamp(3.0, 20.0);
+    await _miniMapController!.animateCamera(CameraUpdate.zoomTo(_miniMapZoom));
+    setState(() {});
+  }
+
+  void _zoomOutMiniMap() async {
+    if (_miniMapController == null) return;
+    _miniMapZoom = (_miniMapZoom - 1).clamp(3.0, 20.0);
+    await _miniMapController!.animateCamera(CameraUpdate.zoomTo(_miniMapZoom));
+    setState(() {});
+  }
+
+
+
 
   Widget _gallerySection() {
     final List<String> _galleryImages = [];
