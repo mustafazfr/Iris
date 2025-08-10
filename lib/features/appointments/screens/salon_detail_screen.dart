@@ -635,10 +635,11 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               children: [
                 _aboutSection(salon),
                 _gallerySection(),
-                _personnelSection(),
+                Builder(builder: (ctx) => _personnelSection(ctx)), // <— önemli kısım
                 _commentsTabSection(commentsVM),
               ],
             ),
+
           ),
         ],
       ),
@@ -995,14 +996,16 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     );
   }
 
-  Widget _personnelSection() {
-    final List<Map<String, String>> _personnel = List.generate(10, (i) {
-      return {
-        'name': 'Jhon Doe ${i + 1}',
-        'role': 'Saç Stilisti',
-        'avatarUrl': 'https://via.placeholder.com/100'
-      };
-    });
+  Widget _personnelSection(BuildContext ctx) {
+    final vm = ctx.watch<SalonDetailViewModel>();
+
+    if (vm.isPersonalsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (vm.personals.isEmpty) {
+      return const Center(child: Text('Bu salonda kayıtlı personel bulunmuyor.'));
+    }
+
     return GridView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -1011,32 +1014,34 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         mainAxisSpacing: 16,
         childAspectRatio: 0.8,
       ),
-      itemCount: _personnel.length,
+      itemCount: vm.personals.length,
       itemBuilder: (context, i) {
-        final p = _personnel[i];
+        final p = vm.personals[i];
+        final role = (p.specialty != null && p.specialty!.isNotEmpty)
+            ? p.specialty!.first
+            : 'Personel';
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircleAvatar(
               radius: 35,
-              backgroundImage: NetworkImage(p['avatarUrl'] ?? ''),
+              backgroundImage: (p.profilePhotoUrl != null && p.profilePhotoUrl!.isNotEmpty)
+                  ? NetworkImage(p.profilePhotoUrl!)
+                  : null,
+              child: (p.profilePhotoUrl == null || p.profilePhotoUrl!.isEmpty)
+                  ? Icon(Icons.person, size: 32, color: Colors.grey.shade500)
+                  : null,
               backgroundColor: Colors.grey.shade200,
             ),
             const SizedBox(height: 8),
-            Text(
-              p['name'] ?? '',
-              style: AppFonts.poppinsBold(fontSize: 14),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              p['role'] ?? '',
-              style: AppFonts.bodySmall(color: Colors.grey),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            Text('${p.name} ${p.surname}',
+                style: AppFonts.poppinsBold(fontSize: 14),
+                textAlign: TextAlign.center,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(role,
+                style: AppFonts.bodySmall(color: Colors.grey),
+                textAlign: TextAlign.center,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
           ],
         );
       },

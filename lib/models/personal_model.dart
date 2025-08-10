@@ -27,14 +27,21 @@ class PersonalModel {
     List<String>? specialties;
     final specialtyData = json['specialty'];
 
-    // Gelen veri bir liste mi diye kontrol et
     if (specialtyData is List) {
-      specialties = List<String>.from(specialtyData.map((x) => x as String));
-    }
-    // Gelen veri bir string mi diye kontrol et (ve boş değilse)
-    else if (specialtyData is String && specialtyData.isNotEmpty) {
-      // Tek bir string geldiyse, onu tek elemanlı bir listeye çevir
-      specialties = [specialtyData];
+      specialties = specialtyData.map((x) => x.toString()).toList();
+    } else if (specialtyData is String && specialtyData.isNotEmpty) {
+      final s = specialtyData.trim();
+      if (s.startsWith('{') && s.endsWith('}')) {
+        // "{Berber,Kuaför}" -> ["Berber","Kuaför"]
+        final inner = s.substring(1, s.length - 1);
+        specialties = inner
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      } else {
+        specialties = [s];
+      }
     }
 
     return PersonalModel(
@@ -46,10 +53,11 @@ class PersonalModel {
       profilePhotoUrl: json['profile_photo_url'],
       phoneNumber: json['phone_number'],
       email: json['email'],
-      createdAt: DateTime.tryParse(json['created_at']) ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updated_at']) ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
     );
   }
+
 
   Map<String, dynamic> toJson() {
     return {

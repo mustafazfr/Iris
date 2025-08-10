@@ -158,4 +158,15 @@ class SaloonRepository {
       rethrow; // Hatanın üst katmanda (ViewModel'de) yakalanmasını sağlar
     }
   }
+  Future<List<PersonalModel>> fetchPersonalsBySaloon(String saloonId) async {
+    final rows = await _client
+        .from('personals')
+        .select('personal_id, saloon_id, name, surname, specialty, profile_photo_url, phone_number, email, created_at, updated_at')
+        .eq('saloon_id', saloonId)
+        .order('name', ascending: true);
+
+    return (rows as List)
+        .map((e) => PersonalModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 }

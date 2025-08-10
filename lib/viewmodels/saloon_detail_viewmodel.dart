@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/personal_model.dart';
 import '../models/reservation_model.dart';
 import '../models/saloon_model.dart';
 import '../models/salon_category_summary_model.dart';
@@ -21,6 +22,9 @@ class SalonDetailViewModel extends ChangeNotifier {
   // --- EKRAN STATE'LERİ ---
   SaloonModel? salon;
   bool isLoading = true;
+
+  List<PersonalModel> personals = [];
+  bool isPersonalsLoading = false;
 
   List<SalonCategorySummaryModel> categories = [];
   List<SalonServiceModel> services = [];
@@ -68,14 +72,15 @@ class SalonDetailViewModel extends ChangeNotifier {
       salon = results[0] as SaloonModel?;
       categories = results[1] as List<SalonCategorySummaryModel>;
 
+      // personelleri çek
+      await fetchPersonals();
+
       if (categories.isNotEmpty) {
         await selectCategory(categories.first, initialFetch: true);
       }
 
-      // YENİ: Çalışma saatlerini çek
+      // (varsa) çalışma saatleri / slotlar
       await fetchWorkingHours(saloonId);
-
-      // Ekran ilk açıldığında bugünün saatlerini çek
       if (salon != null) {
         await fetchAvailableTimeSlots(selectedDate);
       }
@@ -86,6 +91,18 @@ class SalonDetailViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+  Future<void> fetchPersonals() async {
+    if (salon == null) return;
+    try {
+      isPersonalsLoading = true; notifyListeners();
+      personals = await _saloonRepository.fetchPersonalsBySaloon(salon!.saloonId);
+    } catch (e) {
+      personals = [];
+    } finally {
+      isPersonalsLoading = false; notifyListeners();
+    }
+  }
+
 
   // YENİ: Çalışma saatlerini DB'den çek
   Future<void> fetchWorkingHours(String saloonId) async {
