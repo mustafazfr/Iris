@@ -70,4 +70,27 @@ class SaloonRepository {
       return [];
     }
   }
+  Future<List<SaloonModel>> searchSaloons({
+    String? categoryId,
+    String query = '', // Arama metni
+  }) async {
+    try {
+      final response = await _client.rpc('search_saloons', params: {
+        'category_id_filter': categoryId,
+        'search_query': query,
+      });
+
+      // Gelen veri bir liste değilse hata yönetimi
+      if (response is! List) {
+        return [];
+      }
+
+      // Gelen veriyi SaloonModel listesine çevir
+      return response.map((item) => SaloonModel.fromJson(item)).toList();
+
+    } catch (e) {
+      print('Hata - searchSaloons: $e');
+      return [];
+    }
+  }
 }

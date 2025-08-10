@@ -333,12 +333,15 @@ class _MainAppState extends State<MainApp> {
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> bodyStack = [];
-
+    // DEĞİŞİKLİK BURADA: IndexedStack'i eski haline getiriyoruz
+    // AMA SearchScreen'i istisna olarak tutuyoruz.
     Widget bodyContent = IndexedStack(
       index: _selectedIndex,
       children: [
+        // 1. Dashboard (Aynı)
         const DashboardScreen(),
+
+        // 2. Randevular (Başlığı geri ekledik)
         Column(
           children: [
             BigScreenTitleBar(
@@ -348,15 +351,11 @@ class _MainAppState extends State<MainApp> {
             const Expanded(child: AppointmentsScreen()),
           ],
         ),
-        Column(
-          children: [
-            BigScreenTitleBar(
-              title: 'Salon Ara',
-              onBack: () => _onItemTapped(0),
-            ),
-            Expanded(child: SearchScreen()),
-          ],
-        ),
+
+        // 3. ARAMA (BAŞLIKSIZ, DİREKT KENDİSİ. BU DOĞRU OLAN)
+        const SearchScreen(),
+
+        // 4. Favoriler (Başlığı geri ekledik)
         Column(
           children: [
             BigScreenTitleBar(
@@ -366,6 +365,8 @@ class _MainAppState extends State<MainApp> {
             const Expanded(child: FavoritesScreen()),
           ],
         ),
+
+        // 5. Profil (Başlığı geri ekledik)
         Column(
           children: [
             BigScreenTitleBar(
@@ -378,13 +379,17 @@ class _MainAppState extends State<MainApp> {
       ],
     );
 
-    bodyStack.add(bodyContent);
-    bodyStack.add(_buildFloatingNavBar());
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _getAppBar(context),
-      body: Stack(children: bodyStack),
+      body: Stack(
+        children: [
+          bodyContent,
+          _buildFloatingNavBar(),
+        ],
+      ),
     );
   }
 }
+
+// TODO: DİĞER SAYFALAR DA SEARCH SCREEN GİBİ GERİ TUŞU OLMADAN ÇALIŞSIN.

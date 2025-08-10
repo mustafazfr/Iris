@@ -5,16 +5,42 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/category_summary_model.dart';
+import '../repositories/category_repository.dart';
+
+
 class DashboardViewModel extends ChangeNotifier {
   String? locationError;
   GoogleMapController? mapController;
   Position? currentPosition;
   final SaloonRepository _repository = SaloonRepository(Supabase.instance.client);
+  final CategoryRepository _categoryRepository;
 
   /// Tüm marker’ları burada tutacağız.
   Set<Marker> markers = {};
 
-  DashboardViewModel();
+  DashboardViewModel(this._categoryRepository);
+
+  List<CategorySummaryModel> _categories = [];
+  List<CategorySummaryModel> get categories => _categories;
+
+  bool _areCategoriesLoading = false;
+  bool get areCategoriesLoading => _areCategoriesLoading;
+
+  Future<void> fetchCategories() async {
+    _areCategoriesLoading = true;
+    notifyListeners();
+    try {
+      _categories = await _categoryRepository.fetchAllCategories();
+    } catch (e) {
+      // Hata yönetimi burada yapılabilir, şimdilik listeyi boş bırakıyoruz
+      _categories = [];
+      print('Kategorileri çekerken hata: $e');
+    } finally {
+      _areCategoriesLoading = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> initLocation() async {
     locationError = null;

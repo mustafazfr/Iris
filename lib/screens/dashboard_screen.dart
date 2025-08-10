@@ -2,12 +2,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:denemeye_devam/core/app_colors.dart';
 import 'package:denemeye_devam/core/app_fonts.dart';
 import 'package:denemeye_devam/models/saloon_model.dart';
+import 'package:denemeye_devam/screens/search_screen.dart';
 import 'package:denemeye_devam/viewmodels/dashboard_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../features/appointments/screens/appointments_screen.dart';
 import '../features/appointments/screens/salon_detail_screen.dart';
+import '../models/category_summary_model.dart';
 import '../viewmodels/appointments_viewmodel.dart';
 import 'fullscreen_map_screen.dart';
 
@@ -79,81 +81,160 @@ class UpcomingAppointmentsCard extends StatelessWidget {
   }
 }
 
-class CategoryModel {
-  final String title;
-  final String imageUrl;
-  const CategoryModel({required this.title, required this.imageUrl});
-}
 
-final List<CategoryModel> categories = [
-  CategoryModel(
-      title: "Kişisel bakım",
-      imageUrl: "assets/katergori_ornek_resim.jpg"),
-  CategoryModel(
-      title: "Tüy alımı ve ağda",
-      imageUrl: "assets/katergori_ornek_resim.jpg"),
-  CategoryModel(
-      title: "Yüz ve cilt bakımı",
-      imageUrl: "assets/katergori_ornek_resim.jpg"),
-  CategoryModel(
-      title: "Favoriler",
-      imageUrl: "assets/katergori_ornek_resim.jpg"),
-
-];
 
 class CategorySection extends StatelessWidget {
   const CategorySection({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 16, left: 16, bottom: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("Kategoriler", style: AppFonts.h3Regular(color: AppColors.textColorDark)),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 120,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: categories.length,
-              separatorBuilder: (context, idx) => const SizedBox(width: 30),
-              itemBuilder: (context, index) {
-                final cat = categories[index];
-                return SizedBox(
-                  width: 75,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.asset(
-                          cat.imageUrl,
-                          width: 65,
-                          height: 65,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: 75,
-                        height: 36,
-                        child: Text(
-                          cat.title,
-                          style: AppFonts.bodySmall(color: AppColors.textColorDark),
-                          maxLines: 2,
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+    // ViewModel'i dinlemek için Consumer kullanıyoruz
+    return Consumer<DashboardViewModel>(
+      builder: (context, vm, child) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 16, left: 16, bottom: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Kategoriler", style: AppFonts.h3Regular(color: AppColors.textColorDark)),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 120,
+                // Veri yükleniyorsa iskelet, yüklendiyse listeyi göster
+                child: vm.areCategoriesLoading
+                    ? const _CategorySkeleton()
+                    : vm.categories.isEmpty
+                    ? const Center(child: Text("Kategori bulunamadı."))
+                    : ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: vm.categories.length,
+                  separatorBuilder: (context, idx) => const SizedBox(width: 30),
+                  itemBuilder: (context, index) {
+                    final cat = vm.categories[index];
+                    return _CategoryItem(category: cat);
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+// YENİ WIDGET: Tek bir kategori öğesi
+class _CategoryItem extends StatelessWidget {
+  final CategorySummaryModel category;
+  const _CategoryItem({required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 75,
+      child: InkWell(
+        onTap: () {
+          // İSTEĞİN: Tıklayınca SearchScreen'e git
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SearchScreen(
+                // SearchScreen'in bu parametreleri alacak şekilde güncellenmesi gerekecek
+                initialCategoryId: category.categoryId,
+                initialCategoryName: category.name,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                width: 65,
+                height: 65,
+                child: category.iconUrl != null && category.iconUrl!.isNotEmpty
+                    ? CachedNetworkImage(
+                  imageUrl: category.iconUrl!,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(color: Colors.grey.shade200),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.category, color: Colors.grey),
+                  ),
+                )
+                    : Container(
+                  color: Colors.grey.shade200,
+                  child: const Icon(Icons.category, color: Colors.grey),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: 75,
+              height: 36,
+              child: Text(
+                category.name,
+                style: AppFonts.bodySmall(color: AppColors.textColorDark),
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+
+// YENİ WIDGET: Kategori yüklenirken gösterilecek iskelet
+class _CategorySkeleton extends StatelessWidget {
+  const _CategorySkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 4,
+      separatorBuilder: (context, idx) => const SizedBox(width: 30),
+      itemBuilder: (context, index) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Container(
+              width: 65,
+              height: 65,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: 75,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: 50,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -324,6 +405,7 @@ class _DashboardContentState extends State<_DashboardContent> {
     _topRatedSaloonsFuture = vm.getTopRatedSaloons();
     _campaignSaloonsFuture = vm.getCampaignSaloons();
     Provider.of<AppointmentsViewModel>(context, listen: false).fetchDashboardSummary();
+    vm.fetchCategories();
   }
 
   @override

@@ -1,4 +1,5 @@
 // lib/main.dart
+import 'package:denemeye_devam/repositories/category_repository.dart';
 import 'package:denemeye_devam/viewmodels/appointments_viewmodel.dart';
 import 'package:denemeye_devam/viewmodels/auth_viewmodel.dart';
 import 'package:denemeye_devam/viewmodels/dashboard_viewmodel.dart';
@@ -12,21 +13,28 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'features/auth/screens/home_page.dart';
 import 'package:denemeye_devam/viewmodels/comments_viewmodel.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Import flutter_dotenv
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('tr', null);
 
-  // Load the .env file
   await dotenv.load(fileName: ".env");
 
   await Supabase.initialize(
-    // Access the keys from dotenv
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
+  // --- DEĞİŞİKLİK BURADA BAŞLIYOR ---
+
+  // 1. Supabase client'ı bir değişkene alalım.
+  final supabaseClient = Supabase.instance.client;
+
+  // 2. Bu client'ı kullanarak Repository'mizi oluşturalım.
+  final categoryRepository = CategoryRepository(supabaseClient);
+
+  // 3. Şimdi her şeyi Provider'lara verelim.
   runApp(
     MultiProvider(
       providers: [
@@ -35,7 +43,12 @@ void main() async {
         ChangeNotifierProvider(create: (_) => FavoritesViewModel()),
         ChangeNotifierProvider(create: (_) => SearchViewModel()),
         ChangeNotifierProvider(create: (_) => AppointmentsViewModel()),
-        ChangeNotifierProvider(create: (_) => DashboardViewModel()),
+
+        // 4. DashboardViewModel'i oluştururken, yukarıda yarattığımız
+        //    categoryRepository NESNESİNİ içine paslıyoruz.
+        ChangeNotifierProvider(
+          create: (_) => DashboardViewModel(categoryRepository),
+        ),
       ],
       child: const MyApp(),
     ),
