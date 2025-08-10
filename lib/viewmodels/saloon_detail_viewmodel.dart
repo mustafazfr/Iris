@@ -2,13 +2,16 @@
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/reservation_model.dart';
 import '../models/saloon_model.dart';
 import '../models/salon_category_summary_model.dart';
 import '../models/salon_service_model.dart';
 import '../repositories/saloon_repository.dart';
+import '../repositories/reservation_repository.dart';
 
 class SalonDetailViewModel extends ChangeNotifier {
   final SaloonRepository _saloonRepository = SaloonRepository(Supabase.instance.client);
+  final ReservationRepository _reservationRepository = ReservationRepository(Supabase.instance.client);
 
   // --- EKRAN STATE'LERİ ---
   SaloonModel? salon;
@@ -17,6 +20,9 @@ class SalonDetailViewModel extends ChangeNotifier {
   List<SalonServiceModel> services = [];
   SalonCategorySummaryModel? selectedCategory;
   bool isServiceLoading = false;
+
+  List<String> availableTimeSlots = [];
+  bool areTimeSlotsLoading = false;
 
   // --- SEPET STATE'LERİ (Daha önce State sınıfındaydı, şimdi burada) ---
   final Map<SalonServiceModel, int> _cart = {};
@@ -54,6 +60,12 @@ class SalonDetailViewModel extends ChangeNotifier {
       if (categories.isNotEmpty) {
         await selectCategory(categories.first, initialFetch: true);
       }
+
+      // YENİ EKLENDİ: Ekran ilk açıldığında bugünün saatlerini çek
+      if (salon != null) {
+        await fetchAvailableTimeSlots(selectedDate);
+      }
+
     } catch (e) {
       debugPrint("fetchSalonDetails Hata: $e");
     } finally {
@@ -101,13 +113,74 @@ class SalonDetailViewModel extends ChangeNotifier {
   }
 
   // --- RANDEVU TARİH/SAAT METODLARI ---
-  void selectNewDate(DateTime date) {
+  void selectNewDate(DateTime date) async {
     selectedDate = date;
+    selectedTimeSlot = null; // Yeni tarih seçildiğinde saat seçimini sıfırla
     notifyListeners();
+
+    // Yeni tarih için müsait saatleri çek
+    await fetchAvailableTimeSlots(date);
+  }
+  Future<void> fetchAvailableTimeSlots(DateTime date) async {
+    if (salon == null) return;
+
+    areTimeSlotsLoading = true;
+    notifyListeners();
+
+    try {
+      availableTimeSlots = await _saloonRepository.getAvailableTimeSlots(
+        saloonId: salon!.saloonId,
+        date: date,
+      );
+    } catch (e) {
+      debugPrint("Müsait saatler alınamadı: $e");
+      availableTimeSlots = []; // Hata durumunda listeyi boşalt
+    } finally {
+      areTimeSlotsLoading = false;
+      notifyListeners();
+    }
   }
 
   void selectTime(String time) {
     selectedTimeSlot = time;
     notifyListeners();
+  }
+  Future<bool> createReservation() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (salon == null || userId == null || selectedTimeSlot == null || cart.isEmpty) {
+      debugPrint("Randevu için eksik bilgi!");
+      return false;
+    }
+
+    final serviceIds = cart.keys.map((service) => service.serviceId).toList();
+    final servicePrices = cart.keys.map((service) => service.saloonPrice).toList();
+
+    // **** DÜZELTME BURADA ****
+    // personalId'yi modelden kaldırdığımız için buradan da kaldırıyoruz.
+    final newReservation = ReservationModel(
+      userId: userId,
+      saloonId: salon!.saloonId,
+      reservationDate: selectedDate,
+      reservationTime: selectedTimeSlot!,
+      totalPrice: totalCartPrice,
+      status: ReservationStatus.pending,
+    );
+
+    try {
+      await _reservationRepository.createReservationWithServices(
+          newReservation, serviceIds, servicePrices);
+
+      cart.clear();
+      selectedTimeSlot = null;
+      notifyListeners();
+      return true;
+
+    } catch (e) {
+      debugPrint("ViewModel'deki createReservation Hata: $e");
+      if (e is PostgrestException) {
+        debugPrint("Supabase Hata: ${e.message}");
+      }
+      return false;
+    }
   }
 }

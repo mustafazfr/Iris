@@ -1,39 +1,36 @@
+// lib/models/reservation_model.dart
 
 import 'saloon_model.dart';
 import 'service_model.dart';
 
-enum ReservationStatus {
-  pending,
-  confirmed,
-  completed,
-  cancelled,
-  noShow
-}
+enum ReservationStatus { pending, confirmed, completed, cancelled, noShow }
 
 class ReservationModel {
-  final String reservationId;
+  final String? reservationId;
   final String userId;
   final String saloonId;
-  final DateTime reservationDate;     // sadece tarih
-  final String reservationTime;       // saat kısmı, HH:mm:ss string olarak alınır
+  final String? personalId;
+  final DateTime reservationDate;
+  final String reservationTime;
   final double totalPrice;
   final ReservationStatus status;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
   final SaloonModel? saloon;
   final ServiceModel? service;
 
   ReservationModel({
-    required this.reservationId,
+    this.reservationId,
     required this.userId,
     required this.saloonId,
+    this.personalId,
     required this.reservationDate,
     required this.reservationTime,
     required this.totalPrice,
     required this.status,
-    required this.createdAt,
-    required this.updatedAt,
-    this.saloon, // Constructor'a eklendi
+    this.createdAt,
+    this.updatedAt,
+    this.saloon,
     this.service,
   });
 
@@ -45,12 +42,11 @@ class ReservationModel {
         service = ServiceModel.fromJson(serviceData);
       }
     }
-
     return ReservationModel(
-      // --- NULL KONTROLLERİ EKLENDİ ---
-      reservationId: json['reservation_id'] as String? ?? '', // null ise boş string ata
+      reservationId: json['reservation_id'] as String?,
       userId: json['user_id'] as String? ?? '',
       saloonId: json['saloon_id'] as String? ?? '',
+      personalId: json['personal_id'] as String?,
       reservationDate: DateTime.tryParse(json['reservation_date'] ?? '') ?? DateTime.now(),
       reservationTime: json['reservation_time'] as String? ?? '00:00',
       totalPrice: (json['total_price'] as num?)?.toDouble() ?? 0.0,
@@ -60,24 +56,20 @@ class ReservationModel {
       ),
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
-      saloon: json['saloons'] != null
-          ? SaloonModel.fromJson(json['saloons'])
-          : null,
+      saloon: json['saloons'] != null ? SaloonModel.fromJson(json['saloons']) : null,
       service: service,
     );
   }
 
-  Map<String, dynamic> toJson() {
+  // Sadece veritabanı fonksiyonuna (RPC) yollanacak veriyi hazırlar.
+  Map<String, dynamic> toRpcJson() {
     return {
-      'reservation_id': reservationId,
-      'user_id': userId,
-      'saloon_id': saloonId,
-      'reservation_date': reservationDate.toIso8601String().split('T')[0], // sadece tarih
-      'reservation_time': reservationTime, // genelde string tutulur (örn: "14:30:00")
-      'total_price': totalPrice,
-      'status': status.name,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      'p_user_id': userId,
+      'p_saloon_id': saloonId,
+      'p_reservation_date': reservationDate.toIso8601String().split('T')[0],
+      'p_reservation_time': reservationTime,
+      'p_total_price': totalPrice,
+      'p_status': status.name,
     };
   }
 }

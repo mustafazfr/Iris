@@ -393,6 +393,7 @@ class _DashboardContent extends StatefulWidget {
 }
 
 class _DashboardContentState extends State<_DashboardContent> {
+  // Bunları Future olarak tutmaya devam ediyoruz, bu doğru.
   late Future<List<SaloonModel>> _nearbySaloonsFuture;
   late Future<List<SaloonModel>> _topRatedSaloonsFuture;
   late Future<List<SaloonModel>> _campaignSaloonsFuture;
@@ -400,12 +401,31 @@ class _DashboardContentState extends State<_DashboardContent> {
   @override
   void initState() {
     super.initState();
-    final vm = Provider.of<DashboardViewModel>(context, listen: false);
-    _nearbySaloonsFuture = vm.getNearbySaloons();
-    _topRatedSaloonsFuture = vm.getTopRatedSaloons();
-    _campaignSaloonsFuture = vm.getCampaignSaloons();
-    Provider.of<AppointmentsViewModel>(context, listen: false).fetchDashboardSummary();
-    vm.fetchCategories();
+    // Veri çekme işlemlerini doğrudan initState içinde başlatalım.
+    _loadData();
+  }
+
+  // Veri yükleme mantığını ayrı bir fonksiyona taşıdık.
+  void _loadData() {
+    // listen:false provider'a erişmek için context'in build içinde olmasına gerek yok.
+    final dashboardVM = Provider.of<DashboardViewModel>(context, listen: false);
+    final appointmentsVM = Provider.of<AppointmentsViewModel>(context, listen: false);
+
+    // Future'ları burada atıyoruz.
+    _nearbySaloonsFuture = dashboardVM.getNearbySaloons();
+    _topRatedSaloonsFuture = dashboardVM.getTopRatedSaloons();
+    _campaignSaloonsFuture = dashboardVM.getCampaignSaloons();
+
+    dashboardVM.fetchCategories();
+    appointmentsVM.fetchDashboardSummary();
+  }
+
+  // Yenileme fonksiyonu
+  Future<void> _refreshData() async {
+    // setState içinde future'ları yeniden başlatıyoruz ki FutureBuilder'lar tetiklensin.
+    setState(() {
+      _loadData();
+    });
   }
 
   @override
@@ -414,14 +434,7 @@ class _DashboardContentState extends State<_DashboardContent> {
     final appt = context.watch<AppointmentsViewModel>();
     return RefreshIndicator(
       color: AppColors.primaryColor,
-      onRefresh: () async {
-        setState(() {
-          _nearbySaloonsFuture = vm.getNearbySaloons();
-          _topRatedSaloonsFuture = vm.getTopRatedSaloons();
-          _campaignSaloonsFuture = vm.getCampaignSaloons();
-        });
-        await context.read<AppointmentsViewModel>().fetchDashboardSummary();
-      },
+      onRefresh: _refreshData,
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: 120.0),
         physics: const AlwaysScrollableScrollPhysics(),
@@ -559,7 +572,7 @@ class _DashboardContentState extends State<_DashboardContent> {
     );
   }
 
-  Widget _buildSaloonSection(Future<List<SaloonModel>> future, String emptyMessage) {
+  Widget _buildSaloonSection(Future<List<SaloonModel>>? future, String emptyMessage) {
     return FutureBuilder<List<SaloonModel>>(
       future: future,
       builder: (context, snapshot) {

@@ -1,5 +1,6 @@
 import 'package:denemeye_devam/models/saloon_model.dart'; // Veriyi bu modele çevireceğiz
 import 'package:flutter/cupertino.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/personal_model.dart';
@@ -132,6 +133,29 @@ class SaloonRepository {
     } catch (e) {
       print('Hata - fetchSalonServicesByCategory: $e');
       rethrow;
+    }
+  }
+  Future<List<String>> getAvailableTimeSlots({
+    required String saloonId,
+    required DateTime date,
+  }) async {
+    try {
+      // Tarihi 'YYYY-MM-DD' formatına çeviriyoruz
+      final formattedDate = DateFormat('yyyy-MM-dd').format(date);
+
+      final result = await _client.rpc('get_available_slots', params: {
+        'p_saloon_id': saloonId,
+        'p_reservation_date': formattedDate,
+      });
+
+      // Gelen veri List<dynamic> tipinde olacak, bunu List<String> yapıyoruz.
+      // Örn: ["09:00:00", "09:15:00", ...]
+      final slots = List<String>.from(result.map((item) => item['available_slot']));
+      return slots;
+
+    } catch (e) {
+      debugPrint("getAvailableTimeSlots Hata: $e");
+      rethrow; // Hatanın üst katmanda (ViewModel'de) yakalanmasını sağlar
     }
   }
 }

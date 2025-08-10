@@ -14,17 +14,26 @@ class ReservationRepository {
 
   String? get _userId => _client.auth.currentUser?.id;
 
-  Future<void> createReservation(ReservationModel reservation) async {
+  Future<void> createReservationWithServices(
+      ReservationModel reservation, List<String> serviceIds, List<double> servicePrices) async {
     try {
-      // Modeli JSON'a çevirip 'reservations' tablosuna ekliyoruz.
-      // reservationId veritabanı tarafından otomatik oluşturulacağı için yollamıyoruz.
-      final reservationData = reservation.toJson()..remove('reservation_id');
+      // 1. Modelden RPC için hazır, 'p_' ön ekli haritayı al.
+      final params = reservation.toRpcJson();
 
-      await _client.from('reservations').insert(reservationData);
+      // 2. Eksik olan hizmet ID'leri ve Fiyatları listesini bu haritaya ekle.
+      params['p_service_ids'] = serviceIds;
+      params['p_service_prices'] = servicePrices;
+
+      // 3. RPC'yi temiz ve doğru parametrelerle çağır.
+      await _client.rpc('create_reservation_with_services', params: params);
 
     } catch (e) {
-      debugPrint('createReservation Hata: $e');
-      throw Exception('Randevu oluşturulurken bir hata oluştu.');
+      debugPrint('createReservationWithServices Hata: $e');
+      if (e is PostgrestException) {
+        debugPrint('Postgrest Hatası Detay: ${e.details}');
+        debugPrint('Postgrest Hatası Mesaj: ${e.message}');
+      }
+      throw Exception('Randevu oluşturulamadı.');
     }
   }
   Future<List<ReservationModel>> getReservationsForUser() async {
@@ -71,7 +80,7 @@ class ReservationRepository {
             'saloons(saloon_name)'
     )
         .eq('user_id', _userId!)
-        .eq('status', 'approved')
+        .eq('status', 'confirmed')
         .gte('reservation_date', today)
         .order('reservation_date', ascending: true)
         .order('reservation_time', ascending: true)
@@ -99,7 +108,7 @@ class ReservationRepository {
         .select('reservation_date,reservation_time,status')
         .eq('user_id', _userId!)
     // in_ yerine filter
-        .filter('status', 'in', '("approved","pending")')
+        .filter('status', 'in', '("confirmed","pending")')
         .gte('reservation_date', today);
 
     int c = 0;

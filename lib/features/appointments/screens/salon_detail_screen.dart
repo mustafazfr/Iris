@@ -1017,6 +1017,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter modalSetState) {
             DateTime pickedDate = viewModel.selectedDate;
+            // HATA BURADAYDI: pickedTime artık String'den parse edilecek
             TimeOfDay pickedTime = viewModel.selectedTimeSlot != null
                 ? TimeOfDay(
               hour: int.parse(viewModel.selectedTimeSlot!.split(':')[0]),
@@ -1024,15 +1025,14 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             )
                 : const TimeOfDay(hour: 9, minute: 0);
 
-            // ViewModel'den sepet bilgilerini al
             final cart = viewModel.cart;
             final double subtotal = viewModel.totalCartPrice;
-            const double couponDiscount = 10.0; // Bu değeri de ViewModel'den alabiliriz
+            const double couponDiscount = 10.0;
             final double totalAmount = subtotal - couponDiscount;
 
             void removeServiceFromPopup(SalonServiceModel s) {
+              // Artık setState yok, direkt ViewModel'i kullanıyoruz.
               viewModel.removeServiceFromCart(s);
-              // Bottom sheet'in kendi state'ini güncellemesi için modalSetState yeterli
               modalSetState(() {});
             }
 
@@ -1044,24 +1044,31 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                 lastDate: DateTime.now().add(const Duration(days: 365)),
               );
               if (date != null) {
-                modalSetState(() => pickedDate = date);
+                // ViewModel'deki fonksiyonu çağırıyoruz, o da saatleri güncelleyecek.
                 viewModel.selectNewDate(date);
+                modalSetState(() => pickedDate = date);
               }
             }
 
             Future<void> selectTimeSlot() async {
-              final TimeOfDay? selectedTime = await _showTimeSlotPicker(
+              // HATA BURADAYDI: Dönen değer artık TimeOfDay değil, String
+              final String? selectedTimeStr = await _showTimeSlotPicker(
                 context,
                 viewModel,
                 pickedDate,
               );
-              if (selectedTime != null) {
-                modalSetState(() => pickedTime = selectedTime);
-                final formatted = selectedTime.format(context);
-                viewModel.selectTime(formatted);
+              if (selectedTimeStr != null) {
+                // ViewModel'i string ile güncelle
+                viewModel.selectTime(selectedTimeStr);
+                // Lokal state'i de parse ederek güncelle
+                modalSetState(() {
+                  pickedTime = TimeOfDay(
+                    hour: int.parse(selectedTimeStr.split(':')[0]),
+                    minute: int.parse(selectedTimeStr.split(':')[1]),
+                  );
+                });
               }
             }
-
 
             return Padding(
               padding: EdgeInsets.only(
@@ -1070,12 +1077,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               ),
               child: Wrap(
                 children: [
-                  Center(
-                    child: Text(
-                      'Randevu Noktası',
-                      style: AppFonts.poppinsBold(fontSize: 20),
-                    ),
-                  ),
+                  Center(child: Text('Randevu Noktası', style: AppFonts.poppinsBold(fontSize: 20))),
                   const SizedBox(height: 16),
                   _buildConfirmationSalonInfoCard(viewModel.salon!, primaryColor),
                   const SizedBox(height: 24),
@@ -1087,10 +1089,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                         Text('Tarih Seç :', style: AppFonts.bodyMedium(color: Colors.grey.shade600)),
                         Row(
                           children: [
-                            Text(
-                              DateFormat('dd.MM.yyyy', 'tr_TR').format(pickedDate),
-                              style: AppFonts.poppinsBold(fontSize: 16),
-                            ),
+                            Text(DateFormat('dd.MM.yyyy', 'tr_TR').format(pickedDate), style: AppFonts.poppinsBold(fontSize: 16)),
                             const SizedBox(width: 8),
                             const Icon(Icons.calendar_today, color: Colors.grey, size: 20),
                           ],
@@ -1107,10 +1106,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                         Text('Saat Seç :', style: AppFonts.bodyMedium(color: Colors.grey.shade600)),
                         Row(
                           children: [
-                            Text(
-                              pickedTime.format(context),
-                              style: AppFonts.poppinsBold(fontSize: 16),
-                            ),
+                            Text(pickedTime.format(context), style: AppFonts.poppinsBold(fontSize: 16)),
                             const SizedBox(width: 8),
                             const Icon(Icons.access_time_filled, color: Colors.grey, size: 20),
                           ],
@@ -1124,16 +1120,12 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                         _buildConfirmationServiceTile(service, primaryColor, removeServiceFromPopup)
                     ).toList()
                   else
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20.0),
-                        child: Text("Sepetinizde hizmet bulunmuyor."),
-                      ),
-                    ),
+                    const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 20.0), child: Text("Sepetinizde hizmet bulunmuyor."))),
+
                   const SizedBox(height: 24),
                   _buildConfirmationPriceDetails(subtotal, couponDiscount, totalAmount),
                   const SizedBox(height: 24),
-                  _buildConfirmationFinalButton(primaryColor),
+                  _buildConfirmationFinalButton(viewModel,primaryColor),
                   const SizedBox(height: 16),
                 ],
               ),
@@ -1278,17 +1270,25 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     );
   }
 
-  Widget _buildConfirmationFinalButton(Color primaryColor) {
+  Widget _buildConfirmationFinalButton(SalonDetailViewModel viewModel,Color primaryColor) {
     return SizedBox(
       width: double.infinity,
       height: 50,
       child: ElevatedButton(
-        onPressed: () {
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Randevunuz başarıyla oluşturuldu!'), backgroundColor: Colors.green)
-          );
-        },
+        onPressed: () async {
+                   final ok = await viewModel.createReservation(); // <-- DB’ye yazar, sepeti temizler, notifyListeners()
+                   if (!context.mounted) return;
+                   if (ok) {
+                     Navigator.of(context).pop(); // onay popup'ını kapat
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       const SnackBar(content: Text('Randevunuz oluşturuldu!'), backgroundColor: Colors.green),
+                     );
+                   } else {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       const SnackBar(content: Text('Lütfen tarih/saat seçin ve en az bir hizmet ekleyin.'), backgroundColor: Colors.red),
+                     );
+                   }
+                 },
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           shape: RoundedRectangleBorder(
@@ -1304,51 +1304,21 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   }
 
   // YENİ: Müsait saatleri üreten yardımcı fonksiyon
-  List<TimeOfDay> _generateAvailableTimeSlots({
-    required TimeOfDay openingTime,
-    required TimeOfDay closingTime,
-    required List<TimeOfDay> bookedTimes,
-    required Duration interval,
-  }) {
-    final slots = <TimeOfDay>[];
-    var now = DateTime.now();
-    var currentTime = DateTime(now.year, now.month, now.day, openingTime.hour, openingTime.minute);
-    var endTime = DateTime(now.year, now.month, now.day, closingTime.hour, closingTime.minute);
-
-    while (currentTime.isBefore(endTime)) {
-      final timeOfDay = TimeOfDay.fromDateTime(currentTime);
-      if (!bookedTimes.contains(timeOfDay)) {
-        slots.add(timeOfDay);
-      }
-      currentTime = currentTime.add(interval);
-    }
-    return slots;
-  }
-
-  Future<TimeOfDay?> _showTimeSlotPicker(
+  Future<String?> _showTimeSlotPicker(
       BuildContext context, SalonDetailViewModel viewModel, DateTime selectedDate) async {
+
     const primaryColor = Color(0xFF5A67D8);
-    final openingTime = const TimeOfDay(hour: 9, minute: 0);
-    final closingTime = const TimeOfDay(hour: 21, minute: 0);
-    final bookedTimes = [
-      const TimeOfDay(hour: 10, minute: 30),
-      const TimeOfDay(hour: 14, minute: 0),
-    ];
 
-    final availableSlots = _generateAvailableTimeSlots(
-      openingTime: openingTime,
-      closingTime: closingTime,
-      bookedTimes: bookedTimes,
-      interval: const Duration(minutes: 15),
-    );
+    // Müsait saatler zaten viewModel'de mevcut
+    final availableSlots = viewModel.availableTimeSlots;
 
-    return showModalBottomSheet<TimeOfDay>(
+    return showModalBottomSheet<String>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
       ),
       builder: (context) {
-        TimeOfDay? selectedSlot;
+        String? selectedSlot;
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter modalSetState) {
             return Padding(
@@ -1364,11 +1334,20 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                     style: AppFonts.bodyMedium(color: Colors.grey.shade600),
                   ),
                   const Divider(height: 24),
-                  if (availableSlots.isEmpty)
+
+                  // Saatler yükleniyorsa progress göster
+                  if (viewModel.areTimeSlotsLoading)
                     const Center(child: Padding(
                       padding: EdgeInsets.symmetric(vertical: 32.0),
-                      child: Text("Bugün için uygun saat bulunmamaktadır."),
+                      child: CircularProgressIndicator(),
                     ))
+                  // Yükleme bittiyse ve saat yoksa mesaj göster
+                  else if (availableSlots.isEmpty)
+                    const Center(child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32.0),
+                      child: Text("Bu tarih için uygun saat bulunmamaktadır."),
+                    ))
+                  // Saatler varsa GridView'da göster
                   else
                     Expanded(
                       child: GridView.builder(
@@ -1381,7 +1360,10 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                         itemCount: availableSlots.length,
                         itemBuilder: (context, index) {
                           final slot = availableSlots[index];
+                          // "14:15:00" formatını "14:15" olarak gösterelim
+                          final formattedSlot = slot.substring(0, 5);
                           final isSelected = selectedSlot == slot;
+
                           return GestureDetector(
                             onTap: () {
                               modalSetState(() {
@@ -1396,7 +1378,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                               ),
                               child: Center(
                                 child: Text(
-                                  slot.format(context),
+                                  formattedSlot,
                                   style: TextStyle(
                                     color: isSelected ? Colors.white : primaryColor,
                                     fontWeight: FontWeight.bold,

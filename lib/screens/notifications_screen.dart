@@ -1,27 +1,26 @@
-// lib/features/notifications/screens/notifications_screen.dart
+// lib/screens/notifications_screen.dart
 
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-
+import 'package:denemeye_devam/models/reservation_model.dart';
 import 'package:denemeye_devam/viewmodels/appointments_viewmodel.dart';
-import 'package:denemeye_devam/features/common/widgets/notification_card.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../features/common/widgets/notification_card.dart';
 import '../features/appointments/screens/appointments_screen.dart';
-import '../models/reservation_model.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({Key? key}) : super(key: key);
+  // DÜZELTME: Modern Flutter yapısı için super-constructor kullanımı
+  const NotificationsScreen({super.key});
 
   @override
-  _NotificationsScreenState createState() => _NotificationsScreenState();
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    // build bittikten sonra veri çek
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppointmentsViewModel>().fetchAppointments();
     });
@@ -29,7 +28,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // context.watch sayesinde ViewModel'deki değişiklikler UI'ı tetikler
     final vm = context.watch<AppointmentsViewModel>();
 
     return Scaffold(
@@ -37,16 +35,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       body: vm.isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: vm.fetchAppointments,
-              child: _buildList(context, vm),
-            ),
+        onRefresh: vm.fetchAppointments,
+        child: _buildList(context, vm),
+      ),
     );
   }
 
   Widget _buildList(BuildContext context, AppointmentsViewModel vm) {
+    // DÜZELTME: createdAt null olabileceği için sıralamayı güvenli hale getirdik.
+    // Null olanları en sona atar.
     final items = [...vm.allAppointments]
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      ..sort((a, b) {
+        final dateA = a.createdAt ?? DateTime(1970);
+        final dateB = b.createdAt ?? DateTime(1970);
+        return dateB.compareTo(dateA);
+      });
+
     final grouped = _groupByDate(items);
+
+    if (items.isEmpty) {
+      return const Center(child: Text("Henüz bir bildiriminiz yok."));
+    }
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -65,8 +74,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 MaterialPageRoute(builder: (_) => const AppointmentsScreen()),
               ),
               child: NotificationCard(
-                title: res.saloon?.saloonName ?? '—',
+                title: res.saloon?.saloonName ?? 'Salon Bilgisi Yok',
                 message: _messageForStatus(res.status),
+                // DÜZELTME: Fonksiyona artık nullable değer gönderiyoruz
                 timeAgo: _timeAgo(res.createdAt),
                 badgeCount: 1,
               ),
@@ -77,24 +87,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   static Map<String, List<ReservationModel>> _groupByDate(
-    List<ReservationModel> list,
-  ) {
+      List<ReservationModel> list,
+      ) {
     final Map<String, List<ReservationModel>> map = {};
     final now = DateTime.now();
     for (var item in list) {
       final dt = item.createdAt;
-      final diff = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).difference(DateTime(dt.year, dt.month, dt.day)).inDays;
+
+      // DÜZELTME: Eğer createdAt null ise bu bildirimi atla
+      if (dt == null) continue;
+
+      final diff = DateTime(now.year, now.month, now.day)
+          .difference(DateTime(dt.year, dt.month, dt.day))
+          .inDays;
       String key;
-      if (diff == 0)
+      if (diff == 0) {
         key = 'Bugün';
-      else if (diff == 1)
+      } else if (diff == 1) {
         key = 'Dün';
-      else
+      } else {
         key = DateFormat('dd MMMM yyyy', 'tr').format(dt);
+      }
       map.putIfAbsent(key, () => []).add(item);
     }
     return map;
@@ -115,7 +128,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  static String _timeAgo(DateTime dt) {
+  // DÜZELTME: Fonksiyon artık null bir tarih alabilir (DateTime?)
+  static String _timeAgo(DateTime? dt) {
+    // Eğer tarih null ise varsayılan bir metin döndür
+    if (dt == null) return 'yakınlarda';
+
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 1) return 'şimdi';
     if (diff.inHours < 1) return '${diff.inMinutes} dakika önce';
