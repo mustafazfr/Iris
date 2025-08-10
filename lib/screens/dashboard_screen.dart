@@ -394,39 +394,39 @@ class _DashboardContent extends StatefulWidget {
 
 class _DashboardContentState extends State<_DashboardContent> {
   // Bunları Future olarak tutmaya devam ediyoruz, bu doğru.
-  late Future<List<SaloonModel>> _nearbySaloonsFuture;
-  late Future<List<SaloonModel>> _topRatedSaloonsFuture;
-  late Future<List<SaloonModel>> _campaignSaloonsFuture;
+  Future<List<SaloonModel>>? _nearbySaloonsFuture;
+  Future<List<SaloonModel>>? _topRatedSaloonsFuture;
+  Future<List<SaloonModel>>? _campaignSaloonsFuture;
 
   @override
   void initState() {
     super.initState();
-    // Veri çekme işlemlerini doğrudan initState içinde başlatalım.
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();   // <-- İLK FRAME SONRASINA ERTELE
+    });
   }
 
   // Veri yükleme mantığını ayrı bir fonksiyona taşıdık.
   void _loadData() {
-    // listen:false provider'a erişmek için context'in build içinde olmasına gerek yok.
     final dashboardVM = Provider.of<DashboardViewModel>(context, listen: false);
     final appointmentsVM = Provider.of<AppointmentsViewModel>(context, listen: false);
 
-    // Future'ları burada atıyoruz.
-    _nearbySaloonsFuture = dashboardVM.getNearbySaloons();
+    _nearbySaloonsFuture  = dashboardVM.getNearbySaloons();
     _topRatedSaloonsFuture = dashboardVM.getTopRatedSaloons();
     _campaignSaloonsFuture = dashboardVM.getCampaignSaloons();
 
     dashboardVM.fetchCategories();
     appointmentsVM.fetchDashboardSummary();
+
+    if (mounted) setState(() {}); // <-- önemli
   }
+
 
   // Yenileme fonksiyonu
   Future<void> _refreshData() async {
-    // setState içinde future'ları yeniden başlatıyoruz ki FutureBuilder'lar tetiklensin.
-    setState(() {
-      _loadData();
-    });
+    _loadData(); // _loadData zaten setState çağırıyor
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -573,6 +573,10 @@ class _DashboardContentState extends State<_DashboardContent> {
   }
 
   Widget _buildSaloonSection(Future<List<SaloonModel>>? future, String emptyMessage) {
+    if (future == null) {
+      // İlk frame’de future henüz set edilmemişken iskelet göster
+      return const SaloonListSkeleton();
+    }
     return FutureBuilder<List<SaloonModel>>(
       future: future,
       builder: (context, snapshot) {
