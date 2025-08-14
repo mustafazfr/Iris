@@ -5,6 +5,8 @@ import 'package:denemeye_devam/models/saloon_model.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
+import 'package:photo_view/photo_view.dart';
+import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../../../models/comment_model.dart';
@@ -14,6 +16,8 @@ import '../../../viewmodels/comments_viewmodel.dart';
 import '../../../viewmodels/favorites_viewmodel.dart';
 import '../../../viewmodels/saloon_detail_viewmodel.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
 
 
 
@@ -669,8 +673,8 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               physics: const NeverScrollableScrollPhysics(),
               children: [
                 _aboutSection(salon),
-                _gallerySection(),
-                Builder(builder: (ctx) => _personnelSection(ctx)), // <— önemli kısım
+                Builder(builder: (ctx) => _gallerySection(ctx)),   // <— DEĞİŞTİ
+                Builder(builder: (ctx) => _personnelSection(ctx)), // zaten böyleydi
                 _commentsTabSection(commentsVM),
               ],
             ),
@@ -982,54 +986,115 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
 
 
-  Widget _gallerySection() {
-    final List<String> _galleryImages = [];
-    if (_galleryImages.isEmpty) {
+  Widget _gallerySection(BuildContext ctx) {
+    final vm = ctx.watch<SalonDetailViewModel>(); // <— buradaki ctx önemli!
+
+    if (vm.isGalleryLoading) {
+      return const _GallerySkeleton();
+    }
+    if (vm.galleryUrls.isEmpty) {
       return const Center(
-        child: Text(
-          'Galeride resim bulunmuyor.',
-          style: TextStyle(color: AppColors.textColorLight),
-        ),
+        child: Text('Galeride resim bulunmuyor.',
+            style: TextStyle(color: AppColors.textColorLight)),
       );
     }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: List.generate(_galleryImages.length, (i) {
-              final isSelected = i == _selectedGalleryIndex;
-              final width = isSelected ? 120.0 : 100.0;
-              final height = isSelected ? 160.0 : 130.0;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedGalleryIndex = i;
-                  });
-                },
-                child: Container(
-                  width: width,
-                  height: height,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    border: isSelected
-                        ? Border.all(color: AppColors.primaryColor, width: 3)
-                        : null,
-                    image: DecorationImage(
-                      image: NetworkImage(_galleryImages[i]),
-                      fit: BoxFit.cover,
-                    ),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: vm.galleryUrls.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 9 / 16,
+        ),
+        itemBuilder: (context, i) {
+          final url = vm.galleryUrls[i];
+          return GestureDetector(
+            onTap: () => _openGalleryViewer(i, vm.galleryUrls),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Hero(
+                tag: 'gallery-$i',
+                child: CachedNetworkImage(
+                  imageUrl: url,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(color: Colors.grey.shade200),
+                  errorWidget: (_, __, ___) => Container(
+                    color: Colors.grey.shade200,
+                    child: Icon(Icons.broken_image, color: Colors.grey.shade500),
                   ),
                 ),
-              );
-            }),
-          ),
-        ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
+
+
+  void _openGalleryViewer(int startIndex, List<String> urls) {
+  final pageController = PageController(initialPage: startIndex);
+  int currentIndex = startIndex;
+
+  showDialog(
+  context: context,
+  barrierColor: Colors.black.withOpacity(0.95),
+  builder: (_) {
+  return StatefulBuilder(
+  builder: (context, setState) {
+  return Stack(
+  children: [
+  PhotoViewGallery.builder(
+  itemCount: urls.length,
+  pageController: pageController,
+  backgroundDecoration: const BoxDecoration(color: Colors.black),
+  builder: (ctx, index) => PhotoViewGalleryPageOptions(
+  heroAttributes: PhotoViewHeroAttributes(tag: 'gallery-$index'),
+  imageProvider: CachedNetworkImageProvider(urls[index]),
+  minScale: PhotoViewComputedScale.contained,
+  maxScale: PhotoViewComputedScale.covered * 4,
+  ),
+  loadingBuilder: (_, __) =>
+  const Center(child: CircularProgressIndicator()),
+  onPageChanged: (i) => setState(() => currentIndex = i),
+  ),
+
+  // Kapat butonu
+  Positioned(
+  top: MediaQuery.of(context).padding.top + 8,
+  right: 8,
+  child: IconButton(
+  icon: const Icon(Icons.close, color: Colors.white),
+  onPressed: () => Navigator.of(context).pop(),
+  style: IconButton.styleFrom(backgroundColor: Colors.black54),
+  ),
+  ),
+
+  // Sayfa göstergesi
+  Positioned(
+  bottom: MediaQuery.of(context).padding.bottom + 16,
+  left: 0, right: 0,
+  child: Center(
+  child: Text(
+  '${currentIndex + 1} / ${urls.length}',
+  style: const TextStyle(color: Colors.white70, fontSize: 14),
+  ),
+  ),
+  ),
+  ],
+  );
+  },
+  );
+  },
+  );
+  }
+
+
 
   Widget _personnelSection(BuildContext ctx) {
     final vm = ctx.watch<SalonDetailViewModel>();
@@ -1641,4 +1706,29 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     );
   }
 
+}
+class _GallerySkeleton extends StatelessWidget {
+  const _GallerySkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 9,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 9 / 16,
+        ),
+        itemBuilder: (_, __) => ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Container(color: Colors.grey.shade200),
+        ),
+      ),
+    );
+  }
 }

@@ -23,6 +23,9 @@ class SalonDetailViewModel extends ChangeNotifier {
   SaloonModel? salon;
   bool isLoading = true;
 
+  List<String> galleryUrls = [];
+  bool isGalleryLoading = false;
+
   List<PersonalModel> personals = [];
   bool isPersonalsLoading = false;
 
@@ -59,6 +62,29 @@ class SalonDetailViewModel extends ChangeNotifier {
 
   // --- METODLAR ---
 
+  Future<void> fetchGallery(String saloonId) async {
+    try {
+      isGalleryLoading = true; notifyListeners();
+
+      // Tablo/kolon adlarını kendi şemanıza göre uyarlayın:
+      final res = await _sb
+          .from('saloon_gallery')              // örn. tablo adı
+          .select('image_url, sort_order')     // örn. kolonlar
+          .eq('saloon_id', saloonId)
+          .order('sort_order', ascending: true);
+
+      galleryUrls = (res as List)
+          .map((e) => (e['image_url'] as String?) ?? '')
+          .where((u) => u.isNotEmpty)
+          .toList();
+    } catch (e) {
+      debugPrint('Galeri alınamadı: $e');
+      galleryUrls = [];
+    } finally {
+      isGalleryLoading = false; notifyListeners();
+    }
+  }
+
   Future<void> fetchSalonDetails(String saloonId) async {
     isLoading = true;
     notifyListeners();
@@ -74,6 +100,7 @@ class SalonDetailViewModel extends ChangeNotifier {
 
       // personelleri çek
       await fetchPersonals();
+      await fetchGallery(saloonId);
 
       if (categories.isNotEmpty) {
         await selectCategory(categories.first, initialFetch: true);
