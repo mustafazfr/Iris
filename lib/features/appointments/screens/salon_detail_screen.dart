@@ -116,6 +116,41 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   }
 
   // --- WIDGET BUILDER'LAR (Artık Sınıfın İçinde ve Doğru Çalışıyor) ---
+  TimeOfDay _tod(String hhmmss) {
+    final p = hhmmss.split(':');
+    return TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+  }
+
+  List<String> _buildAllSlotsForDate(
+      SalonDetailViewModel vm,
+      DateTime date, {
+        int stepMinutes = 15,
+      }) {
+    // o güne ait çalışma saatini bul
+    final matches = vm.workingHours.where((w) => w.dayOfWeek == date.weekday);
+    if (matches.isEmpty) return [];
+    final wh = matches.first;
+
+    if (wh.isClosed || wh.openingTime == null || wh.closingTime == null) {
+      return [];
+    }
+
+    String _fmt(DateTime dt) =>
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:00';
+
+    final startTod = _tod(wh.openingTime!);
+    final endTod   = _tod(wh.closingTime!);
+
+    var cur = DateTime(date.year, date.month, date.day, startTod.hour, startTod.minute);
+    final end = DateTime(date.year, date.month, date.day, endTod.hour, endTod.minute);
+
+    final out = <String>[];
+    while (cur.isBefore(end)) {
+      out.add(_fmt(cur));
+      cur = cur.add(Duration(minutes: stepMinutes));
+    }
+    return out;
+  }
 
   String _isoDayTr(int iso) {
     switch (iso) {
@@ -1168,11 +1203,13 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           builder: (BuildContext context, StateSetter modalSetState) {
             DateTime pickedDate = viewModel.selectedDate;
             // HATA BURADAYDI: pickedTime artık String'den parse edilecek
-            TimeOfDay pickedTime = viewModel.selectedTimeSlot != null
-                ? TimeOfDay(
-              hour: int.parse(viewModel.selectedTimeSlot!.split(':')[0]),
-              minute: int.parse(viewModel.selectedTimeSlot!.split(':')[1]),
-            )
+            final String? initialSlot = viewModel.selectedTimeSlot ??
+                (viewModel.availableTimeSlots.isNotEmpty
+                    ? viewModel.availableTimeSlots.first
+                    : null);
+
+            TimeOfDay pickedTime = initialSlot != null
+                ? _tod(initialSlot)
                 : const TimeOfDay(hour: 9, minute: 0);
 
             final cart = viewModel.cart;
@@ -1193,11 +1230,32 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                 firstDate: DateTime.now(),
                 lastDate: DateTime.now().add(const Duration(days: 365)),
               );
-              if (date != null) {
-                // ViewModel'deki fonksiyonu çağırıyoruz, o da saatleri güncelleyecek.
-                viewModel.selectNewDate(date);
-                modalSetState(() => pickedDate = date);
+              if (date == null) return;
+
+              // Ekranda seçilen tarihi anında göster
+              modalSetState(() => pickedDate = date);
+
+              // 1) Tek seferlik listener
+              void onceListener() {
+                final doneLoading = !viewModel.areTimeSlotsLoading;
+                final sameDay = viewModel.selectedDate == date;
+
+                if (doneLoading && sameDay) {
+                  final slots = viewModel.availableTimeSlots; // "HH:mm:ss" listesi
+                  if (slots.isNotEmpty) {
+                    final first = slots.first;          // en erken uygun saat
+                    viewModel.selectTime(first);        // VM içindeki seçili saat
+                    modalSetState(() {
+                      pickedTime = _tod(first);         // üstteki "Saat Seç :" yazısını güncelle
+                    });
+                  }
+                  viewModel.removeListener(onceListener); // tek sefer çalışsın
+                }
               }
+
+              // 2) Dinleyiciyi ekle, sonra yeni tarihi seç -> fetch tetiklenecek
+              viewModel.addListener(onceListener);
+              viewModel.selectNewDate(date);
             }
 
             Future<void> selectTimeSlot() async {
@@ -1459,8 +1517,14 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
     const primaryColor = Color(0xFF5A67D8);
 
-    // Müsait saatler zaten viewModel'de mevcut
-    final availableSlots = viewModel.availableTimeSlots;
+    final allSlots = _buildAllSlotsForDate(viewModel, selectedDate);
+    final availableSet = viewModel.availableTimeSlots.toSet();
+
+    // başlangıç: VM'de seçili varsa o, yoksa en erken uygun
+    String? selectedSlot = viewModel.selectedTimeSlot ??
+        (viewModel.availableTimeSlots.isNotEmpty
+            ? viewModel.availableTimeSlots.first
+            : null);
 
     return showModalBottomSheet<String>(
       context: context,
@@ -1468,7 +1532,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
       ),
       builder: (context) {
-        String? selectedSlot;
+        // DİKKAT: burada yeniden selectedSlot tanımlamıyoruz!
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter modalSetState) {
             return Padding(
@@ -1485,21 +1549,23 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   ),
                   const Divider(height: 24),
 
-                  // Saatler yükleniyorsa progress göster
                   if (viewModel.areTimeSlotsLoading)
-                    const Center(child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32.0),
-                      child: CircularProgressIndicator(),
-                    ))
-                  // Yükleme bittiyse ve saat yoksa mesaj göster
-                  else if (availableSlots.isEmpty)
-                    const Center(child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32.0),
-                      child: Text("Bu tarih için uygun saat bulunmamaktadır."),
-                    ))
-                  // Saatler varsa GridView'da göster
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (availableSet.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32.0),
+                        child: Text("Bu tarih için uygun saat bulunmamaktadır."),
+                      ),
+                    )
                   else
-                    Expanded(
+                    SizedBox(
+                      height: 320, // Expanded yerine sabit yükseklik
                       child: GridView.builder(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 4,
@@ -1507,31 +1573,35 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
                         ),
-                        itemCount: availableSlots.length,
+                        itemCount: allSlots.length,
                         itemBuilder: (context, index) {
-                          final slot = availableSlots[index];
-                          // "14:15:00" formatını "14:15" olarak gösterelim
+                          final slot = allSlots[index];
                           final formattedSlot = slot.substring(0, 5);
-                          final isSelected = selectedSlot == slot;
+                          final isAvailable = availableSet.contains(slot);
+                          final isSelected  = selectedSlot == slot;
 
                           return GestureDetector(
-                            onTap: () {
-                              modalSetState(() {
-                                selectedSlot = slot;
-                              });
-                            },
+                            onTap: isAvailable
+                                ? () => modalSetState(() => selectedSlot = slot)
+                                : null,
                             child: Container(
                               decoration: BoxDecoration(
-                                color: isSelected ? primaryColor : Colors.white,
+                                color: isSelected
+                                    ? primaryColor
+                                    : (isAvailable ? Colors.white : Colors.grey.shade200),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: primaryColor),
+                                border: Border.all(
+                                  color: isAvailable ? primaryColor : Colors.grey.shade300,
+                                ),
                               ),
                               child: Center(
                                 child: Text(
                                   formattedSlot,
                                   style: TextStyle(
-                                    color: isSelected ? Colors.white : primaryColor,
                                     fontWeight: FontWeight.bold,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : (isAvailable ? primaryColor : Colors.grey),
                                   ),
                                 ),
                               ),
@@ -1540,14 +1610,15 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                         },
                       ),
                     ),
+
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: selectedSlot == null ? null : () {
-                        Navigator.pop(context, selectedSlot);
-                      },
+                      onPressed: (selectedSlot != null && availableSet.contains(selectedSlot!))
+                          ? () => Navigator.pop(context, selectedSlot)
+                          : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
                         disabledBackgroundColor: Colors.grey.shade300,
@@ -1569,4 +1640,5 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       },
     );
   }
+
 }

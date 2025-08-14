@@ -183,13 +183,23 @@ class SalonDetailViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      availableTimeSlots = await _saloonRepository.getAvailableTimeSlots(
+      final slots = await _saloonRepository.getAvailableTimeSlots(
         saloonId: salon!.saloonId,
         date: date,
       );
+
+      // normalize + sırala (HH:mm:ss string’lerinde sözlük sırası iş görür)
+      availableTimeSlots = (slots as List).cast<String>()..sort();
+
+      // *** EN ÖNEMLİ KISIM ***
+      if (availableTimeSlots.isNotEmpty &&
+          (selectedTimeSlot == null ||
+              !availableTimeSlots.contains(selectedTimeSlot))) {
+        selectedTimeSlot = availableTimeSlots.first; // en erkeni seç
+      }
     } catch (e) {
       debugPrint("Müsait saatler alınamadı: $e");
-      availableTimeSlots = []; // Hata durumunda listeyi boşalt
+      availableTimeSlots = [];
     } finally {
       areTimeSlotsLoading = false;
       notifyListeners();
