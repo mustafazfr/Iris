@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -25,6 +26,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       final vm = Provider.of<AppointmentsViewModel>(context, listen: false);
       await vm.syncServerTime(); // önce sunucu saati
       await vm.fetchAppointments(); // sonra veriler
+      await _ensurePosition();
     });
   }
 
@@ -109,9 +111,15 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                     : filtered;
 
                 // 4 ayrı liste
-                final onayBekleyen = source
-                    .where((r) => r.status == ReservationStatus.pending)
-                    .toList();
+                final onayBekleyen = source.where((r) {
+                  final s = r.status; // nullable olabilir
+                  if (s == null) return true; // statüsü çözülemeyenleri pending gibi göster
+                  // pending dışındaki net statüleri ayır, kalan her şeyi "onay bekleyen" say
+                  return s != ReservationStatus.confirmed &&
+                      s != ReservationStatus.cancelled &&
+                      s != ReservationStatus.completed &&
+                      s != ReservationStatus.noShow;
+                }).toList();
 
                 final gelecek = source.where((r) {
                   final dt = _combineDateAndTime(r);
@@ -191,6 +199,30 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         ],
       ),
     );
+  }
+
+  Position? _pos;
+  Future<void> _ensurePosition() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        perm = await Geolocator.requestPermission();
+        if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) return;
+      }
+      final p = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+      if (mounted) setState(() => _pos = p);
+    } catch (_) {/* sessiz */}
+  }
+
+  String? _distanceTextFor(ReservationModel r) {
+    final s = r.saloon;
+    if (_pos == null || s?.latitude == null || s?.longitude == null) return null;
+    final meters = Geolocator.distanceBetween(
+      _pos!.latitude, _pos!.longitude, s!.latitude!, s.longitude!,
+    );
+    final km = meters / 1000.0;
+    return km < 10 ? '${km.toStringAsFixed(1)} Km' : '${km.toStringAsFixed(0)} Km';
   }
 
   DateTime _combineDateAndTime(ReservationModel r) {
@@ -480,37 +512,34 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           const SizedBox(height: 8),
 
           // Adres + Km
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  hasAddr ? addr! : 'Adres bilgisi yok',
-                  style: TextStyle(
-                    color: AppColors.textColorLight,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
+          Builder(
+            builder: (_) {
+              final addr = reservation.saloon?.saloonAddress;
+              final dist = _distanceTextFor(reservation); // null olabilir
+
+              final left = Text(
+                (addr != null && addr.isNotEmpty) ? addr : 'Adres bilgisi yok',
+                style: TextStyle(color: AppColors.textColorLight, fontSize: 12, fontWeight: FontWeight.w400),
+              );
+
+              if (dist == null) return Row(children: [left]);
+
+              return Row(
+                children: [
+                  left,
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Icon(Icons.circle, size: 6, color: Color(0xFFDEE5F0)),
                   ),
-                ),
-              ),
-              // TODO : MESAFE VERİSİ VAR MI KONTROL ET. KONUMLARDAN HESAPLAMAYA ÇALIŞ.
-              // Mesafe veriniz yoksa bu kısmı tamamen kaldırıyoruz.
-              // Eğer ileride distanceKm eklerseniz şunu açabilirsiniz:
-              // if (distanceKm != null) ...[
-              //   const Padding(
-              //     padding: EdgeInsets.symmetric(horizontal: 8.0),
-              //     child: Icon(Icons.circle, size: 6, color: Color(0xFFDEE5F0)),
-              //   ),
-              //   Text('${distanceKm!.toStringAsFixed(1)} Km',
-              //     style: TextStyle(
-              //       color: AppColors.textColorLight,
-              //       fontSize: 12,
-              //       fontWeight: FontWeight.w400,
-              //     ),
-              //   ),
-              // ],
-            ],
+                  Text(
+                    dist,
+                    style: TextStyle(color: AppColors.textColorLight, fontSize: 12, fontWeight: FontWeight.w400),
+                  ),
+                ],
+              );
+            },
           ),
+
           const SizedBox(height: 8),
 
           // Hizmetler

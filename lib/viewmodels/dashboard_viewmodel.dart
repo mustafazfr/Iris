@@ -122,7 +122,47 @@ class DashboardViewModel extends ChangeNotifier {
   }
 
   // Repository’den veriyi döndüren metotlar
-  Future<List<SaloonModel>> getNearbySaloons() => _repository.getNearbySaloons();
+  Future<List<SaloonModel>> getNearbySaloons({int limit = 3}) async {
+    try {
+      // Tüm salonları (servisleriyle) çek
+      final all = await _repository.getAllSaloons();
+
+      // Konum yoksa en fazla 5 tanesini dön (UI boş kalmasın)
+      if (currentPosition == null) {
+        return all.take(limit).toList();
+      }
+
+      final pos = currentPosition!;
+      // Mesafesi hesaplanabilenleri ayır
+      final withCoords = all.where((s) => s.latitude != null && s.longitude != null).toList();
+
+      // Mesafeye göre sırala (en yakın ilk)
+      withCoords.sort((a, b) {
+        final da = Geolocator.distanceBetween(
+          pos.latitude, pos.longitude, a.latitude!, a.longitude!,
+        );
+        final db = Geolocator.distanceBetween(
+          pos.latitude, pos.longitude, b.latitude!, b.longitude!,
+        );
+        return da.compareTo(db);
+      });
+
+      // En yakın 5
+      final nearest = withCoords.take(limit).toList();
+
+      // Eğer çok az çıktıysa, koordinatı olmayanlardan doldur (opsiyonel)
+      if (nearest.length < limit) {
+        final missing = all.where((s) => s.latitude == null || s.longitude == null);
+        nearest.addAll(missing.take(limit - nearest.length));
+      }
+
+      return nearest;
+    } catch (e) {
+      debugPrint('getNearbySaloons VM Hata: $e');
+      return [];
+    }
+  }
+
   Future<List<SaloonModel>> getTopRatedSaloons() => _repository.getTopRatedSaloons();
   Future<List<SaloonModel>> getCampaignSaloons() => _repository.getCampaignSaloons();
 

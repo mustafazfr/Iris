@@ -34,10 +34,16 @@ class SaloonRepository {
     return _fetchSaloons(_saloonWithServicesQuery);
   }
 
-  Future<List<SaloonModel>> getTopRatedSaloons() {
-    // order ve limit gibi eklemeleri burada yapabiliriz.
-    return _fetchSaloons('$_saloonWithServicesQuery, comments(rating)');
+  Future<List<SaloonModel>> getTopRatedSaloons({int limit = 5}) async {
+    final data = await _client
+        .from('saloons')
+        .select('*, saloon_services(*, services(*))')
+        .order('avg_rating', ascending: false)
+        .limit(limit);
+
+    return data.map((item) => SaloonModel.fromJson(item)).toList();
   }
+
 
   Future<List<SaloonModel>> getCampaignSaloons() {
     return _fetchSaloons(_saloonWithServicesQuery);

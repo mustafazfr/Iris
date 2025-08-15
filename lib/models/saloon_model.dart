@@ -14,6 +14,7 @@ class SaloonModel {
   final List<ServiceModel> services;
   final double avgRating;
   final int ratingCount;
+  final double? distanceKm;
 
   SaloonModel({
     required this.saloonId,
@@ -30,6 +31,7 @@ class SaloonModel {
     this.services = const [],
     this.avgRating = 0.0,
     this.ratingCount = 0,
+    this.distanceKm,
   });
 
   factory SaloonModel.fromJson(Map<String, dynamic> json) {
@@ -57,8 +59,9 @@ class SaloonModel {
           .cast<ServiceModel>()
           .toList()
           : [],
-      avgRating: (json['avg_rating'] as num?)?.toDouble() ?? 0.0, // YENİ
-      ratingCount: json['rating_count'] as int? ?? 0, // YENİ
+      avgRating: (json['avg_rating'] as num?)?.toDouble() ?? 0.0,
+      ratingCount: json['rating_count'] as int? ?? 0,
+      distanceKm: (json['distance_km'] as num?)?.toDouble(), // RPC döndürürse dolar
     );
   }
 

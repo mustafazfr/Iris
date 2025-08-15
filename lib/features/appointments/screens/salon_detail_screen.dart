@@ -3,6 +3,7 @@ import 'package:denemeye_devam/core/app_colors.dart';
 import 'package:denemeye_devam/core/app_fonts.dart';
 import 'package:denemeye_devam/models/saloon_model.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:photo_view/photo_view.dart';
@@ -12,7 +13,9 @@ import 'dart:ui';
 import '../../../models/comment_model.dart';
 import '../../../models/salon_category_summary_model.dart';
 import '../../../models/salon_service_model.dart';
+import '../../../viewmodels/appointments_viewmodel.dart';
 import '../../../viewmodels/comments_viewmodel.dart';
+import '../../../viewmodels/dashboard_viewmodel.dart';
 import '../../../viewmodels/favorites_viewmodel.dart';
 import '../../../viewmodels/saloon_detail_viewmodel.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -36,15 +39,41 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   // --- STATE İÇİNDEKİ GEREKSİZ DEĞİŞKENLERİ TEMİZLEDİK ---
   // Sepet mantığı artık ViewModel'de olduğu için _cart, _addService gibi değişken ve fonksiyonları sildik.
   // Sadece UI ile ilgili, geçici state'ler burada kalabilir.
-  int _selectedGalleryIndex = 1;
   GoogleMapController? _miniMapController;
   double _miniMapZoom = 13.5; // başlangıç yakınlığı
-
+  Position? _pos;
 
   @override
   void initState() {
     super.initState();
-    initializeDateFormatting('tr_TR', null);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // varsa DashboardViewModel’deki mevcut konumu kullan
+      final dash = context.read<DashboardViewModel?>();
+      if (dash != null && dash.currentPosition != null) {
+        _pos = dash.currentPosition;
+        if (mounted) setState(() {});
+        return;
+      }
+      // yoksa kendin al
+      try {
+        if (!await Geolocator.isLocationServiceEnabled()) return;
+        var perm = await Geolocator.checkPermission();
+        if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+          perm = await Geolocator.requestPermission();
+          if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) return;
+        }
+        final p = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+        if (mounted) setState(() => _pos = p);
+      } catch (_) {}
+    });
+  }
+  String? _distanceTextForSaloon(SaloonModel s) {
+    if (_pos == null || s.latitude == null || s.longitude == null) return null;
+    final meters = Geolocator.distanceBetween(
+      _pos!.latitude, _pos!.longitude, s.latitude!, s.longitude!,
+    );
+    final km = meters / 1000.0;
+    return km < 10 ? '${km.toStringAsFixed(1)} Km' : '${km.toStringAsFixed(0)} Km';
   }
 
   @override
@@ -60,7 +89,6 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
         ChangeNotifierProvider(
           create: (_) => CommentsViewModel()..fetchComments(widget.salonId),
         ),
-        ChangeNotifierProvider(create: (_) => FavoritesViewModel()),
       ],
       child: Consumer2<SalonDetailViewModel, CommentsViewModel>(
         builder: (context, salonVM, commentsVM, child) {
@@ -177,8 +205,8 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
 
   AppBar _buildAppBar(BuildContext context, SaloonModel salon) {
-    final favVM = context.watch<FavoritesViewModel>();
-    final isFav = favVM.isSalonFavorite(widget.salonId);
+    final favVM = context.watch<FavoritesViewModel?>(); // nullable al
+    final isFav = favVM?.isSalonFavorite(widget.salonId) ?? false;
 
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -193,15 +221,24 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
             isFav ? Icons.favorite : Icons.favorite_border,
             color: isFav ? Colors.red : Colors.white,
           ),
-          onPressed: () => favVM.toggleFavorite(widget.salonId, salon: salon),
+          onPressed: () {
+            if (favVM == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Favoriler servisi hazır değil.')),
+              );
+              return;
+            }
+            favVM.toggleFavorite(widget.salonId, salon: salon);
+          },
         ),
         const SizedBox(width: 10),
       ],
     );
   }
 
+
   Widget _buildHeader(BuildContext context, SaloonModel salon) {
-    // ... Bu fonksiyonun içeriği doğru olduğu için aynen kopyalıyorum ...
+    final distText = _distanceTextForSaloon(salon);
     return Container(
       height: 300,
       width: double.infinity,
@@ -262,10 +299,22 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                     children: [
                       const Icon(Icons.star, size: 14, color: Colors.white),
                       const SizedBox(width: 4),
-                      Text('4.1 • İstanbul • 5 Km',
-                          style: AppFonts.bodySmall(color: Colors.white)),
+                      Text(
+                        ((salon.avgRating ?? 0).toStringAsFixed(1)),
+                        style: AppFonts.bodySmall(color: Colors.white),
+                      ),
+                      if (distText != null) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.circle, size: 6, color: Colors.white70),
+                        const SizedBox(width: 8),
+                        Text(
+                          distText, // ör: 3.4 Km
+                          style: AppFonts.bodySmall(color: Colors.white),
+                        ),
+                      ],
                     ],
                   ),
+
                   const SizedBox(height: 6),
                   Text(
                     salon.saloonAddress ?? 'Adres belirtilmemiş',
@@ -338,7 +387,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   children: [
                     const Icon(Icons.star, size: 14, color: AppColors.primaryColor),
                     const SizedBox(width: 4),
-                    Text('4.1', style: AppFonts.poppinsBold()),
+                    Text(((salon.avgRating ?? 0).toStringAsFixed(1)), style: AppFonts.poppinsBold()),
                     const SizedBox(width: 8),
                     Text('99+ yorum',
                         style: AppFonts.bodySmall(color: AppColors.textColorLight)),
@@ -992,19 +1041,25 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     setState(() {});
   }
 
-
-
-
   Widget _gallerySection(BuildContext ctx) {
-    final vm = ctx.watch<SalonDetailViewModel>(); // <— buradaki ctx önemli!
+    final vm = ctx.watch<SalonDetailViewModel>();
 
     if (vm.isGalleryLoading) {
       return const _GallerySkeleton();
     }
-    if (vm.galleryUrls.isEmpty) {
+
+    // URL listesini non-null string’lere indir (hem null’ları hem boşları at)
+    final urls = vm.galleryUrls
+        .whereType<String>()
+        .where((u) => u.isNotEmpty)
+        .toList();
+
+    if (urls.isEmpty) {
       return const Center(
-        child: Text('Galeride resim bulunmuyor.',
-            style: TextStyle(color: AppColors.textColorLight)),
+        child: Text(
+          'Galeride resim bulunmuyor.',
+          style: TextStyle(color: AppColors.textColorLight),
+        ),
       );
     }
 
@@ -1013,7 +1068,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: vm.galleryUrls.length,
+        itemCount: urls.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
           crossAxisSpacing: 12,
@@ -1021,9 +1076,9 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
           childAspectRatio: 9 / 16,
         ),
         itemBuilder: (context, i) {
-          final url = vm.galleryUrls[i];
+          final url = urls[i];
           return GestureDetector(
-            onTap: () => _openGalleryViewer(i, vm.galleryUrls),
+            onTap: () => _openGalleryViewer(i, urls),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Hero(
@@ -1044,6 +1099,7 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
       ),
     );
   }
+
 
 
   void _openGalleryViewer(int startIndex, List<String> urls) {
@@ -1561,13 +1617,29 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                    final ok = await viewModel.createReservation(); // <-- DB’ye yazar, sepeti temizler, notifyListeners()
                    if (!context.mounted) return;
                    if (ok) {
-                     Navigator.of(context).pop(); // onay popup'ını kapat
+                     // onay popup'ını kapat
+                     Navigator.of(context).pop();
+
+                     // Appointments VM’i varsa listeleri ve dashboard özetini yenile
+                     final apptVm = context.read<AppointmentsViewModel?>();
+                     if (apptVm != null) {
+                       await apptVm.fetchAppointments();
+                       await apptVm.fetchDashboardSummary(); // Yaklaşan randevu kartı için
+                     }
+
+                     if (!context.mounted) return;
                      ScaffoldMessenger.of(context).showSnackBar(
-                       const SnackBar(content: Text('Randevunuz oluşturuldu!'), backgroundColor: Colors.green),
+                       const SnackBar(
+                         content: Text('Randevunuz oluşturuldu!'),
+                         backgroundColor: Colors.green,
+                       ),
                      );
                    } else {
                      ScaffoldMessenger.of(context).showSnackBar(
-                       const SnackBar(content: Text('Lütfen tarih/saat seçin ve en az bir hizmet ekleyin.'), backgroundColor: Colors.red),
+                       const SnackBar(
+                         content: Text('Lütfen tarih/saat seçin ve en az bir hizmet ekleyin.'),
+                         backgroundColor: Colors.red,
+                       ),
                      );
                    }
                  },

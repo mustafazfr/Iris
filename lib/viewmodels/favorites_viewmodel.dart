@@ -17,10 +17,6 @@ class FavoritesViewModel extends ChangeNotifier {
   // Hızlı kontrol için sadece favori salonların ID'lerini tutan set
   Set<String> _favoriteSaloonIds = {};
 
-  // ViewModel oluşturulduğunda favorileri çekmesi için constructor'a ekliyoruz.
-  FavoritesViewModel() {
-    fetchFavoriteSaloons();
-  }
 
   /// Veritabanından kullanıcının favori salonlarını çeker ve state'i günceller.
   Future<void> fetchFavoriteSaloons() async {
@@ -61,24 +57,51 @@ class FavoritesViewModel extends ChangeNotifier {
 
   /// Bir salonun favori durumunu değiştirir (ekler veya çıkarır).
   /// Bu, tüm favori işlemlerinin yönetildiği merkezi fonksiyondur.
-  Future<void> toggleFavorite(String salonId, {SaloonModel? salon}) async {
-    if (isSalonFavorite(salonId)) {
-      // Favoriden Çıkar
-      await _repository.removeFavorite(salonId);
-      _favoriteSaloons.removeWhere((s) => s.saloonId == salonId);
-      _favoriteSaloonIds.remove(salonId);
+  Future<void> toggleFavorite(String saloonId, {SaloonModel? salon}) async {
+    final wasFav = _favoriteSaloonIds.contains(saloonId);
+
+    if (wasFav) {
+      // 1) İyimser: hemen çıkar
+      _favoriteSaloonIds.remove(saloonId);
+      _favoriteSaloons.removeWhere((s) => s.saloonId == saloonId);
+      notifyListeners();
+
+      try {
+        // 2) Server
+        await _repository.removeFavorite(saloonId);
+      } catch (e) {
+        // 3) Rollback
+        _favoriteSaloonIds.add(saloonId);
+        if (salon != null) _favoriteSaloons.insert(0, salon);
+        notifyListeners();
+        rethrow;
+      }
     } else {
-      // Favoriye Ekle
-      await _repository.addFavorite(salonId);
-      _favoriteSaloonIds.add(salonId);
-      // Eğer salon bilgisi de verildiyse, listeye ekleyerek arayüzün anında güncellenmesini sağla
+      // 1) İyimser: hemen ekle
+      _favoriteSaloonIds.add(saloonId);
       if (salon != null) {
         _favoriteSaloons.insert(0, salon);
       }
+      notifyListeners();
+
+      try {
+        // 2) Server
+        await _repository.addFavorite(saloonId);
+
+        // (opsiyonel) salon null geldiyse detayı tazelemek için:
+        if (salon == null) {
+          await fetchFavoriteSaloons(/* force: true */);
+        }
+      } catch (e) {
+        // 3) Rollback
+        _favoriteSaloonIds.remove(saloonId);
+        _favoriteSaloons.removeWhere((s) => s.saloonId == saloonId);
+        notifyListeners();
+        rethrow;
+      }
     }
-    // Değişiklik sonrası tüm dinleyicilere haber ver!
-    notifyListeners();
   }
+
 
   /// Bir salona tıklandığında detay sayfasına yönlendirme yapan fonksiyon.
   void navigateToSalonDetail(BuildContext context, SaloonModel salon) {
