@@ -347,7 +347,11 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
   // Aşağıda hepsini tek tek ekledim.
 
   Widget _buildHeaderWithActions(BuildContext context, SaloonModel salon) {
-    // ... Bu fonksiyonun içeriği de doğru, aynen kopyalıyorum ...
+
+    final commentsVm = context.watch<CommentsViewModel?>();
+    final int reviewCount = ((salon.ratingCount ?? commentsVm?.comments.length) ?? 0).toInt();
+    final String avgText = salon.avgRating?.toStringAsFixed(1) ?? '—';
+
     return Column(
       children: [
         //_buildHeader(context, salon),
@@ -387,10 +391,13 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
                   children: [
                     const Icon(Icons.star, size: 14, color: AppColors.primaryColor),
                     const SizedBox(width: 4),
-                    Text(((salon.avgRating ?? 0).toStringAsFixed(1)), style: AppFonts.poppinsBold()),
+                    Text(avgText, style: AppFonts.poppinsBold()),
                     const SizedBox(width: 8),
-                    Text('99+ yorum',
-                        style: AppFonts.bodySmall(color: AppColors.textColorLight)),
+                    // BURAYI GÜNCELLE
+                    Text(
+                      '$reviewCount yorum',
+                      style: AppFonts.bodySmall(color: AppColors.textColorLight),
+                    ),
                   ],
                 ),
               ),
