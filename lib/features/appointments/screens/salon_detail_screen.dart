@@ -796,19 +796,25 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
     );
   }
   Widget _aboutSection(SaloonModel salon) {
+    final String? desc = salon.saloonDescription?.trim();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Hakkımızda metni — DB'den
           Text(
-            'İris Güzellik Salonu\'nda kendinizi özel hissetmeniz için uzman ellerde kişiye özel bakım sunuyoruz. Doğal güzelliğinizi ön plana çıkaran, güvenli ve modern hizmetlerle yanınızdayız.',
+            (desc != null && desc.isNotEmpty)
+                ? desc
+                : 'Salon hakkında bilgi henüz eklenmemiş.',
             style: TextStyle(
               color: Colors.grey.shade700,
               fontSize: 15,
               height: 1.6,
             ),
           ),
+
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 24),
@@ -821,7 +827,6 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               color: Colors.black87,
             ),
           ),
-          // NOT: Bu bilgileri dinamik olarak salon modelinden almak en iyisidir.
           const SizedBox(height: 16),
 
           Builder(
@@ -858,11 +863,10 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
 
           const SizedBox(height: 24),
 
-
-
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 24),
+
           const Text(
             'Salon Adresi',
             style: TextStyle(
@@ -880,17 +884,22 @@ class _SalonDetailScreenState extends State<SalonDetailScreen> {
               Expanded(
                 child: Text(
                   salon.saloonAddress ?? 'Adres bilgisi girilmemiş.',
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 15, height: 1.6),
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 15,
+                    height: 1.6,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          _buildSalonMiniMap(salon,zoom:13.5),
+          _buildSalonMiniMap(salon, zoom: 13.5),
         ],
       ),
     );
   }
+
   Widget _buildSalonMiniMap(SaloonModel salon, {double zoom = 13.5}) {
     final lat = salon.latitude;
     final lng = salon.longitude;
