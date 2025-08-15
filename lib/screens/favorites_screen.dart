@@ -1,6 +1,7 @@
 import 'package:denemeye_devam/models/saloon_model.dart';
 import 'package:denemeye_devam/viewmodels/favorites_viewmodel.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:denemeye_devam/core/app_colors.dart';
 import 'package:denemeye_devam/core/app_fonts.dart';
@@ -14,11 +15,15 @@ class FavoritesScreen extends StatefulWidget {
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
+  Position? _pos;
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<FavoritesViewModel>(context, listen: false).fetchFavoriteSaloons();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final favVM = Provider.of<FavoritesViewModel>(context, listen: false);
+      await favVM.fetchFavoriteSaloons();
+      await _ensurePosition();            // <-- EKLE
+      if (mounted) setState(() {});       // mesafeyi göstermek için rebuild
     });
   }
 
@@ -44,6 +49,28 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         );
       },
     );
+  }
+
+  Future<void> _ensurePosition() async {  // <-- EKLE
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        perm = await Geolocator.requestPermission();
+        if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) return;
+      }
+      final p = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+      _pos = p;
+    } catch (_) {}
+  }
+
+  String? _distanceTextFor(SaloonModel s) {   // <-- EKLE
+    if (_pos == null || s.latitude == null || s.longitude == null) return null;
+    final meters = Geolocator.distanceBetween(
+      _pos!.latitude, _pos!.longitude, s.latitude!, s.longitude!,
+    );
+    final km = meters / 1000.0;
+    return km < 10 ? '${km.toStringAsFixed(1)} Km' : '${km.toStringAsFixed(0)} Km';
   }
 
   Widget _buildEmptyFavorites(BuildContext context, bool isSearching) {
@@ -80,8 +107,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       itemCount: saloonsToDisplay.length,
       itemBuilder: (context, index) {
         final salon = saloonsToDisplay[index];
+        final distText = _distanceTextFor(salon);
         return FavoriteSalonCard(
           salon: salon,
+          distanceText: distText,
           onRemoveFavorite: () => viewModel.toggleFavorite(salon.saloonId),
           onBookAppointment: () => viewModel.navigateToSalonDetail(context, salon),
         );
@@ -92,12 +121,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
 class FavoriteSalonCard extends StatelessWidget {
   final SaloonModel salon;
+  final String? distanceText;
   final VoidCallback onRemoveFavorite;
   final VoidCallback onBookAppointment;
 
   const FavoriteSalonCard({
     super.key,
     required this.salon,
+    this.distanceText,
     required this.onRemoveFavorite,
     required this.onBookAppointment,
   });
@@ -179,20 +210,21 @@ class FavoriteSalonCard extends StatelessWidget {
                     children: [
                       Icon(Icons.star, size: 13, color: const Color(0xFFD7D9E2)),
                       const SizedBox(width: 3),
-                      Flexible(
-                        child: Text(
-                          salon.ratingCount?.toStringAsFixed(1) ?? "4.1",
-                          style: const TextStyle(
-                            color: Color(0xFFD7D9E2),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      // AVG RATING (dinamik)
+                      Text(
+                        (salon.avgRating != null) ? salon.avgRating!.toStringAsFixed(1) : '—',
+                        style: const TextStyle(
+                          color: Color(0xFFD7D9E2),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+
                       const SizedBox(width: 6),
-                      Icon(Icons.circle, size: 7, color: const Color(0xFFD7D9E2)),
+
+                      const Icon(Icons.circle, size: 7, color: Color(0xFFD7D9E2)),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
@@ -206,17 +238,21 @@ class FavoriteSalonCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+
+                      // Mesafe kısmı aynı kalsın; onu ayrıca dinamik yapmak istersen haber ver.
                       const SizedBox(width: 6),
-                      Icon(Icons.circle, size: 7, color: const Color(0xFFD7D9E2)),
+                      const Icon(Icons.circle, size: 7, color: Color(0xFFD7D9E2)),
                       const SizedBox(width: 6),
-                      const Text(
-                        "5 Km",
-                        style: TextStyle(
-                          color: Color(0xFFD7D9E2),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                      if (distanceText != null) ...[
+                        const SizedBox(width: 6),
+                        const Icon(Icons.circle, size: 7, color: Color(0xFFD7D9E2)),
+                        const SizedBox(width: 6),
+                        Text(
+                          distanceText!,                         // <-- SABİT 5 Km GİTTİ
+                          style: const TextStyle(
+                              color: Color(0xFFD7D9E2), fontSize: 12, fontWeight: FontWeight.w600),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),
