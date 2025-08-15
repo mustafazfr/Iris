@@ -43,7 +43,7 @@ class ReservationRepository {
       // Sorguyu veritabanı şemasına uygun hale getiriyoruz.
       final data = await _client
           .from('reservations')
-          .select('*, saloons(saloon_name, title_photo_url), reservation_services(*, services(*))') // DEĞİŞTİ: services -> reservation_services(*, services(*))
+          .select('*, saloons(saloon_name, title_photo_url, saloon_address), reservation_services(*, services(*))') // DEĞİŞTİ: services -> reservation_services(*, services(*))
           .eq('user_id', _userId!);
 
       // Gelen veriyi ReservationModel'e çeviriyoruz.

@@ -20,16 +20,15 @@ class AppointmentsViewModel extends ChangeNotifier {
   int get otherActiveCount => _otherActiveCount;
   bool get hasUpcoming => _nextSalonName != null;
 
+  Duration _serverOffset = Duration.zero;
+  Duration get serverOffset => _serverOffset;
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
   List<ReservationModel> _allAppointments = [];
   List<ReservationModel> get allAppointments => _allAppointments;
 
-  // ViewModel oluşturulduğunda verileri çek
-  AppointmentsViewModel() {
-    fetchAppointments();
-  }
 
   Future<void> fetchAppointments() async {
     _isLoading = true;
@@ -89,6 +88,16 @@ class AppointmentsViewModel extends ChangeNotifier {
       _nextDateStr = null;
       _nextTimeStr = null;
       _otherActiveCount = 0;
+    }
+    notifyListeners();
+  }
+  Future<void> syncServerTime() async {
+    try {
+      final ts = await Supabase.instance.client.rpc('get_server_time') as String;
+      final serverNow = DateTime.parse(ts);          // UTC gelir
+      _serverOffset = serverNow.difference(DateTime.now().toUtc());
+    } catch (_) {
+      _serverOffset = Duration.zero;                // sorun olursa lokali kullan
     }
     notifyListeners();
   }

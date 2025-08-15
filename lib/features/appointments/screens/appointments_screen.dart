@@ -8,6 +8,8 @@ import 'package:denemeye_devam/models/reservation_model.dart';
 import 'package:denemeye_devam/viewmodels/appointments_viewmodel.dart';
 import 'package:denemeye_devam/viewmodels/search_viewmodel.dart';
 
+import '../../../widgets/countdown_chip.dart';
+
 class AppointmentsScreen extends StatefulWidget {
   const AppointmentsScreen({Key? key}) : super(key: key);
 
@@ -19,10 +21,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   @override
   void initState() {
     super.initState();
-    // Sayfa açıldıktan sonra ViewModel’den randevuları çek
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AppointmentsViewModel>(context, listen: false)
-          .fetchAppointments();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final vm = Provider.of<AppointmentsViewModel>(context, listen: false);
+      await vm.syncServerTime(); // önce sunucu saati
+      await vm.fetchAppointments(); // sonra veriler
     });
   }
 
@@ -50,8 +52,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 ),
                 labelColor: Colors.white,
                 unselectedLabelColor: const Color(0xFFE4EAF6),
-                labelPadding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                labelPadding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 12,
+                ),
                 labelStyle: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
@@ -81,51 +85,62 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 final all = vm.allAppointments;
 
                 // Arama filtresi uygula
-                final filtered = searchVm.searchQuery.isEmpty
+                final q = searchVm.searchQuery.trim().toLowerCase();
+
+                // önce tüm liste
+                List<ReservationModel> filtered = all;
+
+                // arama varsa filtrele
+                if (q.isNotEmpty) {
+                  filtered = all.where((r) {
+                    final salon = r.saloon?.saloonName.toLowerCase() ?? '';
+                    final servicesText = (r.services.isNotEmpty)
+                        ? r.services
+                              .map((s) => s.serviceName.toLowerCase())
+                              .join(', ')
+                        : (r.service?.serviceName.toLowerCase() ?? '');
+                    return salon.contains(q) || servicesText.contains(q);
+                  }).toList();
+                }
+
+                // arama sonucu boşsa (ama verin varsa) fallback olarak tüm randevuları göster
+                final source = (filtered.isEmpty && all.isNotEmpty)
                     ? all
-                    : all.where((r) {
-                  final q = searchVm.searchQuery.toLowerCase();
-                  final salon =
-                      r.saloon?.saloonName.toLowerCase() ?? '';
-                  final service =
-                      r.service?.serviceName.toLowerCase() ?? '';
-                  return salon.contains(q) || service.contains(q);
-                }).toList();
+                    : filtered;
 
                 // 4 ayrı liste
-                final onayBekleyen = filtered
+                final onayBekleyen = source
                     .where((r) => r.status == ReservationStatus.pending)
                     .toList();
 
-                final gelecek = filtered.where((r) {
-                  final parts = r.reservationTime.split(':');
-                  final dateTime = r.reservationDate.add(Duration(
-                    hours: int.parse(parts[0]),
-                    minutes: int.parse(parts[1]),
-                  ));
-                  return dateTime.isAfter(now) &&
+                final gelecek = source.where((r) {
+                  final dt = _combineDateAndTime(r);
+                  return dt.isAfter(now) &&
                       r.status == ReservationStatus.confirmed;
                 }).toList();
 
-                final gecmis = filtered.where((r) {
-                  final parts = r.reservationTime.split(':');
-                  final dateTime = r.reservationDate.add(Duration(
-                    hours: int.parse(parts[0]),
-                    minutes: int.parse(parts[1]),
-                  ));
-                  return (dateTime.isBefore(now) &&
-                      r.status == ReservationStatus.confirmed) ||
-                      r.status == ReservationStatus.completed ||
-                      r.status == ReservationStatus.noShow;
-                }).toList()
-                  ..sort((a, b) =>
-                      b.reservationDate.compareTo(a.reservationDate));
+                final gecmis =
+                    source.where((r) {
+                      final dt = _combineDateAndTime(r);
+                      return (dt.isBefore(now) &&
+                              r.status == ReservationStatus.confirmed) ||
+                          r.status == ReservationStatus.completed ||
+                          r.status == ReservationStatus.noShow;
+                    }).toList()..sort(
+                      (a, b) => _combineDateAndTime(
+                        b,
+                      ).compareTo(_combineDateAndTime(a)),
+                    );
 
-                final iptal = filtered
+                final iptal = source
                     .where((r) => r.status == ReservationStatus.cancelled)
                     .toList();
 
                 final lists = [onayBekleyen, gelecek, gecmis, iptal];
+
+                if (vm.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
                 return TabBarView(
                   physics: const NeverScrollableScrollPhysics(),
@@ -135,20 +150,16 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                       String msg;
                       switch (idx) {
                         case 0:
-                          msg =
-                          "Onay bekleyen randevunuz bulunmamaktadır.";
+                          msg = "Onay bekleyen randevunuz bulunmamaktadır.";
                           break;
                         case 1:
-                          msg =
-                          "Yaklaşan randevunuz bulunmamaktadır.";
+                          msg = "Yaklaşan randevunuz bulunmamaktadır.";
                           break;
                         case 2:
-                          msg =
-                          "Geçmiş randevunuz bulunmamaktadır.";
+                          msg = "Geçmiş randevunuz bulunmamaktadır.";
                           break;
                         default:
-                          msg =
-                          "İptal edilen randevunuz bulunmamaktadır.";
+                          msg = "İptal edilen randevunuz bulunmamaktadır.";
                       }
                       return Center(
                         child: Text(
@@ -164,7 +175,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                       onRefresh: vm.fetchAppointments,
                       child: ListView.builder(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                         itemCount: list.length,
                         itemBuilder: (c, i) =>
                             _buildAppointmentCard(c, list[i]),
@@ -180,49 +193,152 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     );
   }
 
+  DateTime _combineDateAndTime(ReservationModel r) {
+    // Gün bilgisi UTC geldiyse yerelleştir
+    final d = r.reservationDate.toLocal();
+    final parts = r.reservationTime.split(':'); // "HH:mm" veya "HH:mm:ss"
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    return DateTime(d.year, d.month, d.day, h, m);
+  }
+
+  Widget _statusBadge(ReservationStatus status) {
+    Color color;
+    String text;
+    switch (status) {
+      case ReservationStatus.pending:
+        color = AppColors.warning; // turuncu
+        text = 'Onay Bekliyor';
+        break;
+      case ReservationStatus.confirmed:
+        color = AppColors.success; // yeşil
+        text = 'Onaylandı';
+        break;
+      case ReservationStatus.cancelled:
+        color = AppColors.error; // kırmızı
+        text = 'İptal Edildi';
+        break;
+      case ReservationStatus.completed:
+        color = AppColors.primaryColor; // mor
+        text = 'Tamamlandı';
+        break;
+      default:
+        color = AppColors.greyMedium;
+        text = '';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+
   Widget _buildAppointmentCard(
-      BuildContext context, ReservationModel reservation) {
-    Color getStatusColor() {
-      switch (reservation.status) {
-        case ReservationStatus.pending:
-          return const Color(0xFFFFA800);
-        case ReservationStatus.confirmed:
-          return const Color(0xFF24C166);
-        case ReservationStatus.cancelled:
-          return const Color(0xFFFF4C4C);
-        case ReservationStatus.completed:
-          return const Color(0xFF4E61FA);
-        default:
-          return Colors.grey;
-      }
-    }
+    BuildContext context,
+    ReservationModel reservation,
+  ) {
+    final vm = context.watch<AppointmentsViewModel>();
 
-    String getStatusText() {
-      switch (reservation.status) {
-        case ReservationStatus.pending:
-          return "Onay Bekliyor";
-        case ReservationStatus.confirmed:
-          return "Onaylandı";
-        case ReservationStatus.cancelled:
-          return "İptal Edildi";
-        case ReservationStatus.completed:
-          return "Tamamlandı";
-        default:
-          return "";
-      }
-    }
+    // Birleşik datetime (kullanıcı saat dilimi)
+    final dtLocal = _combineDateAndTime(reservation);
 
+    final addr = reservation.saloon?.saloonAddress?.trim();
+    final hasAddr = addr != null && addr.isNotEmpty;
+
+    // Onay süresi sayacı (15 dk)
+    final createdUtc = (reservation.createdAt ?? DateTime.now()).toUtc();
+    final expiresAtUtc = createdUtc.add(const Duration(minutes: 15));
+
+    // Çoklu hizmet metni
+    final servicesText = reservation.services.isNotEmpty
+        ? reservation.services.map((s) => s.serviceName).join(', ')
+        : 'Hizmet bilgisi yok';
+
+    // Aksiyon satırı
     Widget _buildActionRow() {
-      if (reservation.status == ReservationStatus.pending ||
-          reservation.status == ReservationStatus.confirmed) {
+      // Sunucu saat farkı ile “şimdi (UTC)”
+      final nowAlignedUtc = DateTime.now().toUtc().add(vm.serverOffset);
+
+      // Randevu zamanı (UTC)
+      final dtUtc = DateTime.utc(
+        dtLocal.year,
+        dtLocal.month,
+        dtLocal.day,
+        dtLocal.hour,
+        dtLocal.minute,
+      );
+
+      // Yalnızca CONFIRMED için 12 saat kuralı
+      final canCancelConfirmed =
+          dtUtc.difference(nowAlignedUtc) >= const Duration(hours: 12);
+
+      Future<void> _cancel() async {
+        final id = reservation.reservationId;
+        if (id == null || id.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rezervasyon ID bulunamadı.')),
+          );
+          return;
+        }
+        try {
+          await context.read<AppointmentsViewModel>().cancelAppointment(id);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Randevu iptal edildi.')),
+          );
+        } catch (e) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('İptal edilirken hata: $e')));
+        }
+      }
+
+      void _openServicesSheet() {
+        showModalBottomSheet(
+          context: context,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          builder: (_) => Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Hizmet Detayı',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                Text(servicesText, style: const TextStyle(fontSize: 14)),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      }
+
+      if (reservation.status == ReservationStatus.pending) {
+        // pending: her zaman iptal edilebilir
         return Row(
           children: [
             TextButton(
-              onPressed: () {},
+              onPressed: _cancel,
               child: const Text(
                 "Randevuyu iptal et",
                 style: TextStyle(
-                    color: Color(0xFFFF4C4C), fontWeight: FontWeight.w600),
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             const Spacer(),
@@ -232,39 +348,81 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                 side: const BorderSide(color: AppColors.primaryColor),
                 foregroundColor: AppColors.primaryColor,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text("Düzenleme talep et",
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text(
+                "Düzenleme talep et",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        );
+      } else if (reservation.status == ReservationStatus.confirmed) {
+        // confirmed: 12 saatten fazla varsa iptal edilebilir
+        return Row(
+          children: [
+            if (canCancelConfirmed)
+              TextButton(
+                onPressed: _cancel,
+                child: const Text(
+                  "Randevuyu iptal et",
+                  style: TextStyle(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            const Spacer(),
+            OutlinedButton(
+              onPressed: () {},
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primaryColor),
+                foregroundColor: AppColors.primaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                "Düzenleme talep et",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         );
       } else {
+        // completed / cancelled
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             OutlinedButton(
-              onPressed: () {},
+              onPressed: _openServicesSheet,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF4E61FA)),
-                foregroundColor: const Color(0xFF4E61FA),
+                side: const BorderSide(color: AppColors.primaryColor),
+                foregroundColor: AppColors.primaryColor,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text("Hizmet detayı",
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text(
+                "Hizmet detayı",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
             const SizedBox(width: 12),
             OutlinedButton(
               onPressed: () {},
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF4E61FA)),
-                foregroundColor: const Color(0xFF4E61FA),
+                side: const BorderSide(color: AppColors.primaryColor),
+                foregroundColor: AppColors.primaryColor,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text("Tekrar oluştur",
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text(
+                "Tekrar oluştur",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         );
@@ -275,118 +433,128 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FD),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border:
-        Border.all(color: AppColors.primaryColor.withOpacity(0.5), width: 1),
+        border: Border.all(
+          color: AppColors.primaryColor.withOpacity(0.5),
+          width: 1,
+        ),
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Başlık: Salon adı + sağda rozet & sayaç
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Salon adı
-              Row(
+              Expanded(
+                child: Text(
+                  reservation.saloon?.saloonName ?? 'Salon Bilgisi Yok',
+                  style: const TextStyle(
+                    fontFamily: "Poppins",
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
+                    color: AppColors.primaryColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Wrap(
+                spacing: 6,          // rozet ile sayacın arası
+                runSpacing: 4,       // alta inerse aradaki düşey boşluk
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Expanded(
-                    child: Text(
-                      reservation.saloon?.saloonName ?? 'Salon Bilgisi Yok',
-                      style: const TextStyle(
-                        fontFamily: "Poppins",
-                        fontWeight: FontWeight.w600,
-                        fontSize: 18,
-                        color: AppColors.primaryColor,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                  _statusBadge(reservation.status),
+                  if (reservation.status == ReservationStatus.pending)
+                    CountdownChip(
+                      expiresAtUtc: expiresAtUtc,
+                      serverOffset: vm.serverOffset,
                     ),
-                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              // Adres + Km
-              Row(
-                children: [
-                  Text(
-                    reservation.saloon?.saloonAddress ?? 'Adres bilgisi yok',
-                    style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Icon(Icons.circle, size: 6, color: Color(0xFFDEE5F0)),
-                  ),
-                  Text(
-                    "5.0 Km",
-                    style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Hizmet detayı
-              Text(
-                "Saç kesimi x 1 + Maske x 1",
-                style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              // Tarih + Fiyat
-              Row(
-                children: [
-                  Text(
-                    DateFormat('d MMMM y, HH:mm', 'tr_TR')
-                        .format(reservation.reservationDate),
-                    style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Icon(Icons.circle, size: 6, color: Color(0xFFDEE5F0)),
-                  ),
-                  Text(
-                    "₺150",
-                    style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              // Aksiyonlar
-              _buildActionRow(),
             ],
           ),
-          // Durum rozeti
-          Positioned(
-            top: 0,
-            right: 0,
-            child: Container(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: getStatusColor(),
-                borderRadius: BorderRadius.circular(6),
+
+          const SizedBox(height: 8),
+
+          // Adres + Km
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  hasAddr ? addr! : 'Adres bilgisi yok',
+                  style: TextStyle(
+                    color: AppColors.textColorLight,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
               ),
-              child: Text(
-                getStatusText(),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13),
-              ),
-            ),
+              // TODO : MESAFE VERİSİ VAR MI KONTROL ET. KONUMLARDAN HESAPLAMAYA ÇALIŞ.
+              // Mesafe veriniz yoksa bu kısmı tamamen kaldırıyoruz.
+              // Eğer ileride distanceKm eklerseniz şunu açabilirsiniz:
+              // if (distanceKm != null) ...[
+              //   const Padding(
+              //     padding: EdgeInsets.symmetric(horizontal: 8.0),
+              //     child: Icon(Icons.circle, size: 6, color: Color(0xFFDEE5F0)),
+              //   ),
+              //   Text('${distanceKm!.toStringAsFixed(1)} Km',
+              //     style: TextStyle(
+              //       color: AppColors.textColorLight,
+              //       fontSize: 12,
+              //       fontWeight: FontWeight.w400,
+              //     ),
+              //   ),
+              // ],
+            ],
           ),
+          const SizedBox(height: 8),
+
+          // Hizmetler
+          Text(
+            servicesText,
+            style: TextStyle(
+              color: AppColors.textColorLight,
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+
+          // Tarih + Fiyat
+          Row(
+            children: [
+              Text(
+                DateFormat('d MMMM y, HH:mm', 'tr_TR').format(dtLocal),
+                style: TextStyle(
+                  color: AppColors.textColorDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Icon(Icons.circle, size: 6, color: Color(0xFFDEE5F0)),
+              ),
+              Text(
+                '₺${reservation.totalPrice.toStringAsFixed(0)}',
+                style: TextStyle(
+                  color: AppColors.textColorDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+
+          // Aksiyonlar
+          _buildActionRow(),
         ],
       ),
     );
